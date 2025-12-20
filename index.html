@@ -153,24 +153,29 @@
     const accentClass = isM ? 'border-l-[4px] border-l-green-500' : 'border-l-[4px] border-l-red-500';
 
     listEl.insertAdjacentHTML('beforeend', `
-        <div class="glass-card p-4 rounded-xl flex justify-between items-center shadow-sm ${accentClass}" style="border-top:none; border-right:none; border-bottom:none;">
-            <div class="flex items-center gap-3">
-                <div class="w-10 h-10 rounded-full flex items-center justify-center ${isM ? 'bg-green-50 text-green-600' : 'bg-red-50 text-red-600'} text-lg">
-                    ${isM ? '↙️' : '↗️'}
-                </div>
-                <div>
-                    <p class="font-bold text-sm text-gray-800">${item.item || '-'}</p>
-                    <p class="text-[9px] text-gray-400 font-bold uppercase tracking-tight">
-                        ${item.kategori} <span class="mx-1">•</span> ${formattedDate} <span class="mx-1">|</span> ${formattedTime}
-                    </p>
-                </div>
+    <div class="glass-card p-4 rounded-xl flex justify-between items-center shadow-sm ${accentClass}" style="border-top:none; border-right:none; border-bottom:none;">
+        <div class="flex items-center gap-3">
+            <div class="w-10 h-10 rounded-full flex items-center justify-center ${isM ? 'bg-green-50 text-green-600' : 'bg-red-50 text-red-600'} text-lg">
+                ${isM ? '↙️' : '↗️'}
             </div>
-            <div class="text-right">
-                <p class="font-black text-sm ${isM ? 'text-green-600' : 'text-red-600'}">
-                    ${symbol} Rp${item.jumlah.toLocaleString('id-ID')}
+            <div>
+                <p class="font-bold text-sm text-gray-800 leading-tight">${item.item || '-'}</p>
+                
+                <p class="text-[10px] text-blue-600 font-bold uppercase tracking-wide mt-0.5">
+                    ${item.kategori}
+                </p>
+                
+                <p class="text-[9px] text-gray-400 font-medium uppercase tracking-tighter mt-0.5">
+                    ${formattedDate} <span class="mx-1 text-gray-300">|</span> ${formattedTime}
                 </p>
             </div>
-        </div>`);
+        </div>
+        <div class="text-right">
+            <p class="font-black text-sm ${isM ? 'text-green-600' : 'text-red-600'}">
+                ${symbol} Rp${item.jumlah.toLocaleString('id-ID')}
+            </p>
+        </div>
+    </div>`);
 });
     updateAnalisaChart(transactions, data.pengeluaran);
 }
