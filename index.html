@@ -3,178 +3,196 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Finance Dashboard - Ultra Fast</title>
+    <title>Finance Dashboard - Complete Analytics</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
-        body {
-            background-color: var(--tg-theme-secondary-bg-color, #f3f4f6);
-            color: var(--tg-theme-text-color, #1f2937);
-        }
-        .floating-header {
-            position: sticky;
-            top: 0;
-            z-index: 50;
-            background-color: var(--tg-theme-secondary-bg-color, #f3f4f6);
-            backdrop-filter: blur(10px);
-        }
-        .glass-card {
-            background: var(--tg-theme-bg-color, #ffffff);
-            border: 1px solid rgba(0,0,0,0.05);
-        }
-        /* Custom scrollbar untuk tampilan lebih clean */
+        body { background-color: var(--tg-theme-secondary-bg-color, #f3f4f6); color: var(--tg-theme-text-color, #1f2937); }
+        .floating-header { position: sticky; top: 0; z-index: 50; background-color: var(--tg-theme-secondary-bg-color, #f3f4f6); backdrop-filter: blur(10px); }
+        .glass-card { background: var(--tg-theme-bg-color, #ffffff); border: 1px solid rgba(0,0,0,0.05); }
         ::-webkit-scrollbar { width: 0px; }
+        .tab-active { border-bottom: 2px solid #2563eb; color: #2563eb; }
+        .tab-inactive { border-bottom: 2px solid transparent; color: #9ca3af; }
+        .legend-item:active { background-color: rgba(0,0,0,0.05); transform: scale(0.98); }
     </style>
 </head>
-<body class="antialiased">
+<body class="antialiased font-sans">
     
     <div class="floating-header px-4 pt-4 pb-2 shadow-sm">
         <div class="flex items-center justify-between mb-3">
             <h1 class="text-lg font-bold">Keuangan Saya</h1>
-            <select id="monthFilter" class="text-sm bg-transparent font-bold text-blue-600 outline-none border-none cursor-pointer">
-                <option disabled selected>Memuat...</option>
-            </select>
+            <select id="monthFilter" class="text-xs bg-transparent font-bold text-blue-600 outline-none border-none cursor-pointer"></select>
         </div>
 
-        <div class="bg-blue-600 rounded-2xl p-5 shadow-lg text-white mb-2 transform transition-transform active:scale-95">
+        <div class="bg-blue-600 rounded-2xl p-5 shadow-lg text-white mb-2">
             <p class="text-[10px] opacity-80 font-medium uppercase tracking-wider">Saldo Bulan Ini</p>
             <h2 id="totalSaldo" class="text-3xl font-bold mt-1">Rp 0</h2>
-            
-            <div class="flex gap-4 mt-4 pt-4 border-t border-blue-500/50">
-                <div class="flex-1">
-                    <p class="text-[9px] uppercase opacity-70">Pemasukan</p>
-                    <p id="totalMasuk" class="text-sm font-semibold text-green-300">Rp 0</p>
-                </div>
-                <div class="flex-1 text-right">
-                    <p class="text-[9px] uppercase opacity-70">Pengeluaran</p>
-                    <p id="totalKeluar" class="text-sm font-semibold text-red-300">Rp 0</p>
-                </div>
+            <div class="flex gap-4 mt-4 pt-4 border-t border-blue-500/50 text-[11px]">
+                <div class="flex-1">Pemasukan<span id="totalMasuk" class="block font-bold text-green-300">Rp 0</span></div>
+                <div class="flex-1 text-right">Pengeluaran<span id="totalKeluar" class="block font-bold text-red-300">Rp 0</span></div>
             </div>
+        </div>
+
+        <div class="flex mt-4 border-b border-gray-100">
+            <button id="btnRiwayat" onclick="switchTab('riwayat')" class="flex-1 py-3 text-[10px] font-bold uppercase tracking-wider tab-active transition-all">Riwayat</button>
+            <button id="btnAnalisa" onclick="switchTab('analisa')" class="flex-1 py-3 text-[10px] font-bold uppercase tracking-wider tab-inactive transition-all">Analisa Pengeluaran</button>
         </div>
     </div>
 
-    <main class="px-4 py-2">
-        <div class="flex justify-between items-center mb-4 mt-2">
-            <h3 class="text-[11px] font-bold text-gray-400 uppercase tracking-[0.1em]">Riwayat Transaksi</h3>
-            <span id="txCount" class="text-[10px] bg-gray-200 px-2 py-0.5 rounded-full text-gray-500">0</span>
+    <main class="px-4 py-4 pb-10">
+        <div id="secRiwayat">
+            <div id="transactionList" class="space-y-3"></div>
         </div>
 
-        <div id="transactionList" class="space-y-3">
+        <div id="secAnalisa" class="hidden space-y-6">
+            <div class="glass-card p-6 rounded-3xl shadow-sm flex flex-col items-center">
+                <h3 class="text-[10px] font-bold mb-6 text-gray-400 uppercase tracking-widest">Proporsi Kategori</h3>
+                <div class="w-full max-w-[170px] mb-6 relative">
+                    <canvas id="expenseChart"></canvas>
+                </div>
+                <div id="chartLegend" class="w-full space-y-3"></div>
             </div>
 
-        <div id="loader" class="hidden py-20 text-center">
-            <div class="inline-block animate-spin rounded-full h-8 w-8 border-4 border-blue-600 border-t-transparent"></div>
-            <p class="text-xs text-gray-400 mt-2">Sinkronisasi Database...</p>
+            <div class="glass-card p-6 rounded-3xl shadow-sm">
+                <h3 class="text-[10px] font-bold mb-6 text-center text-gray-400 uppercase tracking-widest">Tren 5 Bulan Terakhir</h3>
+                <div class="h-60"><canvas id="trendChart"></canvas></div>
+            </div>
         </div>
+
+        <div id="loader" class="hidden py-20 text-center"><div class="inline-block animate-spin rounded-full h-8 w-8 border-4 border-blue-600 border-t-transparent"></div></div>
     </main>
 
     <script>
-        // --- KONFIGURASI SUPABASE ---
         const SUPABASE_URL = 'https://pfichwnfffjzibusofao.supabase.co';
         const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBmaWNod25mZmZqemlidXNvZmFvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjU4MzE0NjIsImV4cCI6MjA4MTQwNzQ2Mn0.Hp9nGeQEiNXnKoPkeSY2Qoey0HP2Er0E4TbwBe_y64c';
         const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
-
-        // --- TELEGRAM SDK ---
         const tg = window.Telegram.WebApp;
-        tg.expand();
-        tg.ready();
 
-        const filterEl = document.getElementById('monthFilter');
-        const listEl = document.getElementById('transactionList');
-        const loader = document.getElementById('loader');
+        let myChart = null, trendChart = null;
+        const formatIDR = (n) => "Rp " + (n || 0).toLocaleString('id-ID');
 
-        const formatIDR = (n) => "Rp " + n.toLocaleString('id-ID');
+        function switchTab(tab) {
+            if (tg.HapticFeedback) tg.HapticFeedback.impactOccurred('light');
+            const isRiwayat = tab === 'riwayat';
+            document.getElementById('secRiwayat').classList.toggle('hidden', !isRiwayat);
+            document.getElementById('secAnalisa').classList.toggle('hidden', isRiwayat);
+            document.getElementById('btnRiwayat').className = `flex-1 py-3 text-[10px] font-bold uppercase tracking-wider ${isRiwayat ? 'tab-active' : 'tab-inactive'}`;
+            document.getElementById('btnAnalisa').className = `flex-1 py-3 text-[10px] font-bold uppercase tracking-wider ${!isRiwayat ? 'tab-active' : 'tab-inactive'}`;
+            if(!isRiwayat) loadTrendData();
+        }
 
-        // 1. Inisialisasi Filter (Ambil daftar bulan unik)
         async function initFilter() {
-            // Ambil 500 transaksi terakhir saja untuk membuat daftar bulan di filter
-            const { data } = await supabaseClient
-                .from('transaksi')
-                .select('tanggal')
-                .order('tanggal', { ascending: false })
-                .limit(500);
-
+            const { data } = await supabaseClient.from('transaksi').select('tanggal').order('tanggal', { ascending: false });
             if (data && data.length > 0) {
                 const uniqueMonths = [...new Set(data.map(i => {
                     const d = new Date(i.tanggal);
                     return d.toLocaleDateString('id-ID', { month: 'long', year: 'numeric' });
                 }))];
-
-                filterEl.innerHTML = uniqueMonths.map(m => `<option value="${m}">${m}</option>`).join('');
-                
-                // Load data untuk bulan pertama
+                document.getElementById('monthFilter').innerHTML = uniqueMonths.map(m => `<option value="${m}">${m}</option>`).join('');
                 loadData(uniqueMonths[0]);
-            } else {
-                filterEl.innerHTML = '<option>Tidak ada data</option>';
             }
         }
 
-        // 2. Load Data menggunakan RPC (Sangat Cepat)
         async function loadData(filterValue) {
-            listEl.innerHTML = '';
-            loader.classList.remove('hidden');
+            document.getElementById('transactionList').innerHTML = '';
+            document.getElementById('loader').classList.remove('hidden');
+            const { data, error } = await supabaseClient.rpc('get_monthly_summary', { target_month_year: filterValue });
+            document.getElementById('loader').classList.add('hidden');
+            if (error) return;
 
-            // Memanggil fungsi SQL get_monthly_summary
-            const { data, error } = await supabaseClient
-                .rpc('get_monthly_summary', { target_month_year: filterValue });
-
-            loader.classList.add('hidden');
-
-            if (error) {
-                console.error('Error RPC:', error);
-                alert('Gagal mengambil data. Pastikan fungsi SQL sudah dibuat.');
-                return;
-            }
-
-            // Update Header Saldo
+            document.getElementById('totalSaldo').innerText = formatIDR(data.saldo);
             document.getElementById('totalMasuk').innerText = formatIDR(data.pemasukan);
             document.getElementById('totalKeluar').innerText = formatIDR(data.pengeluaran);
-            document.getElementById('totalSaldo').innerText = formatIDR(data.saldo);
             
-            const transactions = data.transaksi || [];
-            document.getElementById('txCount').innerText = transactions.length + " Transaksi";
+            (data.transaksi || []).forEach(item => {
+                const isM = item.jenis?.toLowerCase() === 'pemasukan';
+                document.getElementById('transactionList').insertAdjacentHTML('beforeend', `
+                    <div class="glass-card p-4 rounded-xl flex justify-between items-center shadow-sm">
+                        <div class="flex items-center gap-3">
+                            <div class="w-10 h-10 rounded-full flex items-center justify-center ${isM ? 'bg-green-50 text-green-600' : 'bg-red-50 text-red-600'} text-lg">${isM ? '↙️' : '↗️'}</div>
+                            <div><p class="font-bold text-sm">${item.item || '-'}</p><p class="text-[9px] text-gray-400 font-bold uppercase">${item.kategori}</p></div>
+                        </div>
+                        <p class="font-black text-sm ${isM ? 'text-green-600' : 'text-red-600'}">${formatIDR(item.jumlah).replace('Rp ', '')}</p>
+                    </div>`);
+            });
+            updateAnalisaChart(data.transaksi || [], data.pengeluaran);
+        }
 
-            // Update List Transaksi
-            if (transactions.length === 0) {
-                listEl.innerHTML = '<p class="text-center text-gray-400 py-10 text-sm">Belum ada transaksi di bulan ini.</p>';
-                return;
+        function highlightChart(index) {
+            if (!myChart) return;
+            if (tg.HapticFeedback) tg.HapticFeedback.selectionChanged();
+            myChart.setActiveElements([{ datasetIndex: 0, index: index }]);
+            myChart.update();
+        }
+
+        function updateAnalisaChart(transactions, totalPengeluaran) {
+            const pengeluaranItems = transactions.filter(t => t.jenis?.toLowerCase() !== 'pemasukan');
+            const dataGrouped = {};
+            pengeluaranItems.forEach(t => dataGrouped[t.kategori] = (dataGrouped[t.kategori] || 0) + t.jumlah);
+
+            const labels = Object.keys(dataGrouped), values = Object.values(dataGrouped);
+            const colors = ['#3b82f6', '#ef4444', '#10b981', '#f59e0b', '#8b5cf6', '#06b6d4'];
+
+            const ctx = document.getElementById('expenseChart').getContext('2d');
+            if (myChart) myChart.destroy();
+            myChart = new Chart(ctx, {
+                type: 'doughnut',
+                data: { labels, datasets: [{ data: values, backgroundColor: colors, borderWidth: 4, borderColor: '#ffffff', hoverOffset: 15 }] },
+                options: { cutout: '80%', plugins: { legend: { display: false } } }
+            });
+
+            document.getElementById('chartLegend').innerHTML = labels.map((label, i) => {
+                const value = dataGrouped[label];
+                const percent = totalPengeluaran > 0 ? ((value / totalPengeluaran) * 100).toFixed(1) : 0;
+                return `
+                <div onclick="highlightChart(${i})" class="legend-item flex justify-between items-center p-3 rounded-2xl transition-all cursor-pointer">
+                    <div class="flex items-center gap-3">
+                        <div class="w-2.5 h-2.5 rounded-full" style="background-color: ${colors[i % colors.length]}"></div>
+                        <div>
+                            <p class="text-[11px] font-bold text-gray-700">${label}</p>
+                            <p class="text-[9px] text-gray-400 font-bold uppercase tracking-tighter">${percent}% Proportional</p>
+                        </div>
+                    </div>
+                    <p class="text-[11px] font-black">${formatIDR(value)}</p>
+                </div>`;
+            }).join('');
+        }
+
+        async function loadTrendData() {
+            const options = Array.from(document.getElementById('monthFilter').options).map(o => o.value).reverse();
+            const last5Months = options.slice(-5);
+            const incomeData = [], expenseData = [];
+
+            for (const month of last5Months) {
+                const { data } = await supabaseClient.rpc('get_monthly_summary', { target_month_year: month });
+                incomeData.push(data.pemasukan || 0);
+                expenseData.push(data.pengeluaran || 0);
             }
 
-            transactions.forEach(item => {
-                // Perbaikan deteksi: gunakan .toLowerCase() untuk membandingkan
-                const isM = item.jenis && item.jenis.toLowerCase() === 'pemasukan';
-                
-                const card = `
-                    <div class="glass-card p-4 rounded-xl flex justify-between items-center shadow-sm active:scale-[0.98] transition-transform">
-                        <div class="flex items-center gap-3">
-                            <div class="w-10 h-10 rounded-full flex items-center justify-center ${isM ? 'bg-green-100 text-green-600' : 'bg-red-100 text-red-600'}">
-                                ${isM ? '↙️' : '↗️'}
-                            </div>
-                            <div>
-                                <p class="font-bold text-sm text-gray-800">${item.item || 'Tanpa Nama'}</p>
-                                <p class="text-[10px] text-gray-400 uppercase font-medium">${item.kategori} • ${item.tanggal}</p>
-                            </div>
-                        </div>
-                        
-                        <div class="text-right">
-                            <p class="font-extrabold text-sm ${isM ? 'text-green-600' : 'text-red-600'}">
-                                ${isM ? '+' : '-'} ${formatIDR(item.jumlah)}
-                            </p>
-                        </div>
-                    </div>`;
-                listEl.insertAdjacentHTML('beforeend', card);
+            const ctx = document.getElementById('trendChart').getContext('2d');
+            if (trendChart) trendChart.destroy();
+            trendChart = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: last5Months.map(l => l.split(' ')[0]),
+                    datasets: [
+                        { label: 'Masuk', data: incomeData, backgroundColor: '#10b981', borderRadius: 20, barPercentage: 0.3, categoryPercentage: 0.6 },
+                        { label: 'Keluar', data: expenseData, backgroundColor: '#ef4444', borderRadius: 20, barPercentage: 0.3, categoryPercentage: 0.6 }
+                    ]
+                },
+                options: {
+                    maintainAspectRatio: false,
+                    plugins: { legend: { position: 'bottom', labels: { boxWidth: 8, font: { size: 9, weight: 'bold' } } } },
+                    scales: { y: { display: false }, x: { grid: { display: false }, ticks: { font: { size: 9, weight: 'bold' } } } }
+                }
             });
         }
 
-        // Event Listener saat filter diganti
-        filterEl.addEventListener('change', (e) => {
-            if (tg.HapticFeedback) tg.HapticFeedback.impactOccurred('medium');
-            loadData(e.target.value);
-        });
-
-        // Jalankan Inisialisasi
+        document.getElementById('monthFilter').addEventListener('change', (e) => loadData(e.target.value));
         initFilter();
+        tg.ready();
     </script>
 </body>
 </html>
