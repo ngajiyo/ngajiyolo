@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Finance Dashboard - Complete Analytics</title>
+    <title>Finance Dashboard - Final Version</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
@@ -48,10 +48,8 @@
 
         <div id="secAnalisa" class="hidden space-y-6">
             <div class="glass-card p-6 rounded-3xl shadow-sm flex flex-col items-center">
-                <h3 class="text-[10px] font-bold mb-6 text-gray-400 uppercase tracking-widest">Proporsi Kategori</h3>
-                <div class="w-full max-w-[170px] mb-6 relative">
-                    <canvas id="expenseChart"></canvas>
-                </div>
+                <h3 class="text-[10px] font-bold mb-6 text-gray-400 uppercase tracking-widest text-center">Proporsi Kategori</h3>
+                <div class="w-full max-w-[170px] mb-6 relative"><canvas id="expenseChart"></canvas></div>
                 <div id="chartLegend" class="w-full space-y-3"></div>
             </div>
 
@@ -61,7 +59,9 @@
             </div>
         </div>
 
-        <div id="loader" class="hidden py-20 text-center"><div class="inline-block animate-spin rounded-full h-8 w-8 border-4 border-blue-600 border-t-transparent"></div></div>
+        <div id="loader" class="hidden py-20 text-center">
+            <div class="inline-block animate-spin rounded-full h-8 w-8 border-4 border-blue-600 border-t-transparent"></div>
+        </div>
     </main>
 
     <script>
@@ -74,7 +74,6 @@
         const formatIDR = (n) => "Rp " + (n || 0).toLocaleString('id-ID');
 
         function switchTab(tab) {
-            if (tg.HapticFeedback) tg.HapticFeedback.impactOccurred('light');
             const isRiwayat = tab === 'riwayat';
             document.getElementById('secRiwayat').classList.toggle('hidden', !isRiwayat);
             document.getElementById('secAnalisa').classList.toggle('hidden', isRiwayat);
@@ -96,45 +95,101 @@
         }
 
         async function loadData(filterValue) {
-            document.getElementById('transactionList').innerHTML = '';
-            document.getElementById('loader').classList.remove('hidden');
-            const { data, error } = await supabaseClient.rpc('get_monthly_summary', { target_month_year: filterValue });
-            document.getElementById('loader').classList.add('hidden');
-            if (error) return;
+    const listEl = document.getElementById('transactionList');
+    document.getElementById('loader').classList.remove('hidden');
+    
+    const { data, error } = await supabaseClient.rpc('get_monthly_summary', { target_month_year: filterValue });
+    document.getElementById('loader').classList.add('hidden');
+    
+    if (error) return;
 
-            document.getElementById('totalSaldo').innerText = formatIDR(data.saldo);
-            document.getElementById('totalMasuk').innerText = formatIDR(data.pemasukan);
-            document.getElementById('totalKeluar').innerText = formatIDR(data.pengeluaran);
-            
-            (data.transaksi || []).forEach(item => {
-                const isM = item.jenis?.toLowerCase() === 'pemasukan';
-                document.getElementById('transactionList').insertAdjacentHTML('beforeend', `
-                    <div class="glass-card p-4 rounded-xl flex justify-between items-center shadow-sm">
-                        <div class="flex items-center gap-3">
-                            <div class="w-10 h-10 rounded-full flex items-center justify-center ${isM ? 'bg-green-50 text-green-600' : 'bg-red-50 text-red-600'} text-lg">${isM ? '↙️' : '↗️'}</div>
-                            <div><p class="font-bold text-sm">${item.item || '-'}</p><p class="text-[9px] text-gray-400 font-bold uppercase">${item.kategori}</p></div>
-                        </div>
-                        <p class="font-black text-sm ${isM ? 'text-green-600' : 'text-red-600'}">${formatIDR(item.jumlah).replace('Rp ', '')}</p>
-                    </div>`);
-            });
-            updateAnalisaChart(data.transaksi || [], data.pengeluaran);
+    document.getElementById('totalSaldo').innerText = formatIDR(data.saldo);
+    document.getElementById('totalMasuk').innerText = formatIDR(data.pemasukan);
+    document.getElementById('totalKeluar').innerText = formatIDR(data.pengeluaran);
+    
+    let transactions = data.transaksi || [];
+
+    // SORTIR JS
+    transactions.sort((a, b) => {
+        const dA = new Date(a.tanggal).getTime();
+        const dB = new Date(b.tanggal).getTime();
+        if (dB !== dA) return dB - dA;
+
+        // Menggunakan bracket notation ['Waktu Input']
+        const tA = a['Waktu Input'] ? new Date(a['Waktu Input']).getTime() : 0;
+        const tB = b['Waktu Input'] ? new Date(b['Waktu Input']).getTime() : 0;
+        return tB - tA;
+    });
+
+    listEl.innerHTML = '';
+    transactions.forEach(item => {
+    const isM = item.jenis?.toLowerCase() === 'pemasukan';
+    
+    // --- FORMAT TANGGAL ---
+    let formattedDate = "-";
+    if (item.tanggal) {
+        const d = item.tanggal.split('-');
+        const months = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'];
+        if (d.length === 3) {
+            formattedDate = `${d[2]} ${months[parseInt(d[1]) - 1]} ${d[0]}`;
         }
+    }
+
+    // --- FORMAT JAM ---
+    let formattedTime = "--:--";
+    const rawTime = item['Waktu Input'];
+    if (rawTime) {
+        try {
+            const timePart = rawTime.includes(' ') ? rawTime.split(' ')[1] : rawTime;
+            formattedTime = timePart.substring(0, 5);
+        } catch (e) {
+            formattedTime = "--:--";
+        }
+    }
+
+    // Simbol dan warna aksen kiri saja
+    const symbol = isM ? '+' : '-';
+    // border-l-4 hanya memberikan garis di kiri, bukan di atas/bawah/kanan
+    const accentClass = isM ? 'border-l-[4px] border-l-green-500' : 'border-l-[4px] border-l-red-500';
+
+    listEl.insertAdjacentHTML('beforeend', `
+        <div class="glass-card p-4 rounded-xl flex justify-between items-center shadow-sm ${accentClass}" style="border-top:none; border-right:none; border-bottom:none;">
+            <div class="flex items-center gap-3">
+                <div class="w-10 h-10 rounded-full flex items-center justify-center ${isM ? 'bg-green-50 text-green-600' : 'bg-red-50 text-red-600'} text-lg">
+                    ${isM ? '↙️' : '↗️'}
+                </div>
+                <div>
+                    <p class="font-bold text-sm text-gray-800">${item.item || '-'}</p>
+                    <p class="text-[9px] text-gray-400 font-bold uppercase tracking-tight">
+                        ${item.kategori} <span class="mx-1">•</span> ${formattedDate} <span class="mx-1">|</span> ${formattedTime}
+                    </p>
+                </div>
+            </div>
+            <div class="text-right">
+                <p class="font-black text-sm ${isM ? 'text-green-600' : 'text-red-600'}">
+                    ${symbol} Rp${item.jumlah.toLocaleString('id-ID')}
+                </p>
+            </div>
+        </div>`);
+});
+    updateAnalisaChart(transactions, data.pengeluaran);
+}
 
         function highlightChart(index) {
-            if (!myChart) return;
-            if (tg.HapticFeedback) tg.HapticFeedback.selectionChanged();
-            myChart.setActiveElements([{ datasetIndex: 0, index: index }]);
-            myChart.update();
+            if (myChart) {
+                myChart.setActiveElements([{ datasetIndex: 0, index: index }]);
+                myChart.update();
+            }
         }
 
         function updateAnalisaChart(transactions, totalPengeluaran) {
             const pengeluaranItems = transactions.filter(t => t.jenis?.toLowerCase() !== 'pemasukan');
             const dataGrouped = {};
             pengeluaranItems.forEach(t => dataGrouped[t.kategori] = (dataGrouped[t.kategori] || 0) + t.jumlah);
-
+            
             const labels = Object.keys(dataGrouped), values = Object.values(dataGrouped);
             const colors = ['#3b82f6', '#ef4444', '#10b981', '#f59e0b', '#8b5cf6', '#06b6d4'];
-
+            
             const ctx = document.getElementById('expenseChart').getContext('2d');
             if (myChart) myChart.destroy();
             myChart = new Chart(ctx, {
@@ -144,51 +199,73 @@
             });
 
             document.getElementById('chartLegend').innerHTML = labels.map((label, i) => {
-                const value = dataGrouped[label];
-                const percent = totalPengeluaran > 0 ? ((value / totalPengeluaran) * 100).toFixed(1) : 0;
+                const val = dataGrouped[label];
+                const pct = totalPengeluaran > 0 ? ((val / totalPengeluaran) * 100).toFixed(1) : 0;
                 return `
-                <div onclick="highlightChart(${i})" class="legend-item flex justify-between items-center p-3 rounded-2xl transition-all cursor-pointer">
+                <div onclick="highlightChart(${i})" class="legend-item flex justify-between items-center p-2 rounded-xl">
                     <div class="flex items-center gap-3">
                         <div class="w-2.5 h-2.5 rounded-full" style="background-color: ${colors[i % colors.length]}"></div>
                         <div>
                             <p class="text-[11px] font-bold text-gray-700">${label}</p>
-                            <p class="text-[9px] text-gray-400 font-bold uppercase tracking-tighter">${percent}% Proportional</p>
+                            <p class="text-[9px] text-gray-400 font-bold uppercase">${pct}% Proportional</p>
                         </div>
                     </div>
-                    <p class="text-[11px] font-black">${formatIDR(value)}</p>
+                    <p class="text-[11px] font-black">${formatIDR(val)}</p>
                 </div>`;
             }).join('');
         }
 
         async function loadTrendData() {
-            const options = Array.from(document.getElementById('monthFilter').options).map(o => o.value).reverse();
-            const last5Months = options.slice(-5);
-            const incomeData = [], expenseData = [];
-
-            for (const month of last5Months) {
-                const { data } = await supabaseClient.rpc('get_monthly_summary', { target_month_year: month });
-                incomeData.push(data.pemasukan || 0);
-                expenseData.push(data.pengeluaran || 0);
-            }
-
-            const ctx = document.getElementById('trendChart').getContext('2d');
-            if (trendChart) trendChart.destroy();
-            trendChart = new Chart(ctx, {
-                type: 'bar',
-                data: {
-                    labels: last5Months.map(l => l.split(' ')[0]),
-                    datasets: [
-                        { label: 'Masuk', data: incomeData, backgroundColor: '#10b981', borderRadius: 20, barPercentage: 0.3, categoryPercentage: 0.6 },
-                        { label: 'Keluar', data: expenseData, backgroundColor: '#ef4444', borderRadius: 20, barPercentage: 0.3, categoryPercentage: 0.6 }
-                    ]
+    const options = Array.from(document.getElementById('monthFilter').options).map(o => o.value).reverse();
+    const last5Months = options.slice(-5);
+    const incomeData = [], expenseData = [];
+    
+    for (const month of last5Months) {
+        const { data } = await supabaseClient.rpc('get_monthly_summary', { target_month_year: month });
+        incomeData.push(data.pemasukan || 0);
+        expenseData.push(data.pengeluaran || 0);
+    }
+    
+    const ctx = document.getElementById('trendChart').getContext('2d');
+    if (trendChart) trendChart.destroy();
+    
+    trendChart = new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: last5Months.map(l => l.split(' ')[0]),
+            datasets: [
+                { label: 'Masuk', data: incomeData, backgroundColor: '#10b981', borderRadius: 20, barPercentage: 0.3 },
+                { label: 'Keluar', data: expenseData, backgroundColor: '#ef4444', borderRadius: 20, barPercentage: 0.3 }
+            ]
+        },
+        options: {
+            maintainAspectRatio: false,
+            plugins: { 
+                legend: { position: 'bottom', labels: { boxWidth: 10, font: { size: 10 } } } 
+            },
+            scales: {
+                y: {
+                    display: true, // Kita aktifkan kembali sumbu Y
+                    beginAtZero: true,
+                    grid: { display: true, drawBorder: false, color: 'rgba(0,0,0,0.05)' },
+                    ticks: {
+                        font: { size: 9 },
+                        callback: function(value) {
+                            // Format ke ribuan (k) atau jutaan (jt) agar tidak sempit
+                            if (value >= 1000000) return (value / 1000000).toFixed(1) + 'jt';
+                            if (value >= 1000) return (value / 1000) + 'rb';
+                            return value;
+                        }
+                    }
                 },
-                options: {
-                    maintainAspectRatio: false,
-                    plugins: { legend: { position: 'bottom', labels: { boxWidth: 8, font: { size: 9, weight: 'bold' } } } },
-                    scales: { y: { display: false }, x: { grid: { display: false }, ticks: { font: { size: 9, weight: 'bold' } } } }
+                x: { 
+                    grid: { display: false },
+                    ticks: { font: { size: 10, weight: 'bold' } }
                 }
-            });
+            }
         }
+    });
+}
 
         document.getElementById('monthFilter').addEventListener('change', (e) => loadData(e.target.value));
         initFilter();
