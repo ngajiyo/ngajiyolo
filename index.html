@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Finance Dashboard - Ultra Fast</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <style>
+        body {
+            background-color: var(--tg-theme-secondary-bg-color, #f3f4f6);
+            color: var(--tg-theme-text-color, #1f2937);
+        }
+        .floating-header {
+            position: sticky;
+            top: 0;
+            z-index: 50;
+            background-color: var(--tg-theme-secondary-bg-color, #f3f4f6);
+            backdrop-filter: blur(10px);
+        }
+        .glass-card {
+            background: var(--tg-theme-bg-color, #ffffff);
+            border: 1px solid rgba(0,0,0,0.05);
+        }
+        /* Custom scrollbar untuk tampilan lebih clean */
+        ::-webkit-scrollbar { width: 0px; }
+    </style>
+</head>
+<body class="antialiased">
+    
+    <div class="floating-header px-4 pt-4 pb-2 shadow-sm">
+        <div class="flex items-center justify-between mb-3">
+            <h1 class="text-lg font-bold">Keuangan Saya</h1>
+            <select id="monthFilter" class="text-sm bg-transparent font-bold text-blue-600 outline-none border-none cursor-pointer">
+                <option disabled selected>Memuat...</option>
+            </select>
+        </div>
+
+        <div class="bg-blue-600 rounded-2xl p-5 shadow-lg text-white mb-2 transform transition-transform active:scale-95">
+            <p class="text-[10px] opacity-80 font-medium uppercase tracking-wider">Saldo Bulan Ini</p>
+            <h2 id="totalSaldo" class="text-3xl font-bold mt-1">Rp 0</h2>
+            
+            <div class="flex gap-4 mt-4 pt-4 border-t border-blue-500/50">
+                <div class="flex-1">
+                    <p class="text-[9px] uppercase opacity-70">Pemasukan</p>
+                    <p id="totalMasuk" class="text-sm font-semibold text-green-300">Rp 0</p>
+                </div>
+                <div class="flex-1 text-right">
+                    <p class="text-[9px] uppercase opacity-70">Pengeluaran</p>
+                    <p id="totalKeluar" class="text-sm font-semibold text-red-300">Rp 0</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <main class="px-4 py-2">
+        <div class="flex justify-between items-center mb-4 mt-2">
+            <h3 class="text-[11px] font-bold text-gray-400 uppercase tracking-[0.1em]">Riwayat Transaksi</h3>
+            <span id="txCount" class="text-[10px] bg-gray-200 px-2 py-0.5 rounded-full text-gray-500">0</span>
+        </div>
+
+        <div id="transactionList" class="space-y-3">
+            </div>
+
+        <div id="loader" class="hidden py-20 text-center">
+            <div class="inline-block animate-spin rounded-full h-8 w-8 border-4 border-blue-600 border-t-transparent"></div>
+            <p class="text-xs text-gray-400 mt-2">Sinkronisasi Database...</p>
+        </div>
+    </main>
+
+    <script>
+        // --- KONFIGURASI SUPABASE ---
+        const SUPABASE_URL = 'https://pfichwnfffjzibusofao.supabase.co';
+        const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBmaWNod25mZmZqemlidXNvZmFvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjU4MzE0NjIsImV4cCI6MjA4MTQwNzQ2Mn0.Hp9nGeQEiNXnKoPkeSY2Qoey0HP2Er0E4TbwBe_y64c';
+        const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+        // --- TELEGRAM SDK ---
+        const tg = window.Telegram.WebApp;
+        tg.expand();
+        tg.ready();
+
+        const filterEl = document.getElementById('monthFilter');
+        const listEl = document.getElementById('transactionList');
+        const loader = document.getElementById('loader');
+
+        const formatIDR = (n) => "Rp " + n.toLocaleString('id-ID');
+
+        // 1. Inisialisasi Filter (Ambil daftar bulan unik)
+        async function initFilter() {
+            // Ambil 500 transaksi terakhir saja untuk membuat daftar bulan di filter
+            const { data } = await supabaseClient
+                .from('transaksi')
+                .select('tanggal')
+                .order('tanggal', { ascending: false })
+                .limit(500);
+
+            if (data && data.length > 0) {
+                const uniqueMonths = [...new Set(data.map(i => {
+                    const d = new Date(i.tanggal);
+                    return d.toLocaleDateString('id-ID', { month: 'long', year: 'numeric' });
+                }))];
+
+                filterEl.innerHTML = uniqueMonths.map(m => `<option value="${m}">${m}</option>`).join('');
+                
+                // Load data untuk bulan pertama
+                loadData(uniqueMonths[0]);
+            } else {
+                filterEl.innerHTML = '<option>Tidak ada data</option>';
+            }
+        }
+
+        // 2. Load Data menggunakan RPC (Sangat Cepat)
+        async function loadData(filterValue) {
+            listEl.innerHTML = '';
+            loader.classList.remove('hidden');
+
+            // Memanggil fungsi SQL get_monthly_summary
+            const { data, error } = await supabaseClient
+                .rpc('get_monthly_summary', { target_month_year: filterValue });
+
+            loader.classList.add('hidden');
+
+            if (error) {
+                console.error('Error RPC:', error);
+                alert('Gagal mengambil data. Pastikan fungsi SQL sudah dibuat.');
+                return;
+            }
+
+            // Update Header Saldo
+            document.getElementById('totalMasuk').innerText = formatIDR(data.pemasukan);
+            document.getElementById('totalKeluar').innerText = formatIDR(data.pengeluaran);
+            document.getElementById('totalSaldo').innerText = formatIDR(data.saldo);
+            
+            const transactions = data.transaksi || [];
+            document.getElementById('txCount').innerText = transactions.length + " Transaksi";
+
+            // Update List Transaksi
+            if (transactions.length === 0) {
+                listEl.innerHTML = '<p class="text-center text-gray-400 py-10 text-sm">Belum ada transaksi di bulan ini.</p>';
+                return;
+            }
+
+            transactions.forEach(item => {
+                // Perbaikan deteksi: gunakan .toLowerCase() untuk membandingkan
+                const isM = item.jenis && item.jenis.toLowerCase() === 'pemasukan';
+                
+                const card = `
+                    <div class="glass-card p-4 rounded-xl flex justify-between items-center shadow-sm active:scale-[0.98] transition-transform">
+                        <div class="flex items-center gap-3">
+                            <div class="w-10 h-10 rounded-full flex items-center justify-center ${isM ? 'bg-green-100 text-green-600' : 'bg-red-100 text-red-600'}">
+                                ${isM ? '↙️' : '↗️'}
+                            </div>
+                            <div>
+                                <p class="font-bold text-sm text-gray-800">${item.item || 'Tanpa Nama'}</p>
+                                <p class="text-[10px] text-gray-400 uppercase font-medium">${item.kategori} • ${item.tanggal}</p>
+                            </div>
+                        </div>
+                        
+                        <div class="text-right">
+                            <p class="font-extrabold text-sm ${isM ? 'text-green-600' : 'text-red-600'}">
+                                ${isM ? '+' : '-'} ${formatIDR(item.jumlah)}
+                            </p>
+                        </div>
+                    </div>`;
+                listEl.insertAdjacentHTML('beforeend', card);
+            });
+        }
+
+        // Event Listener saat filter diganti
+        filterEl.addEventListener('change', (e) => {
+            if (tg.HapticFeedback) tg.HapticFeedback.impactOccurred('medium');
+            loadData(e.target.value);
+        });
+
+        // Jalankan Inisialisasi
+        initFilter();
+    </script>
+</body>
+</html>
