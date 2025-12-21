@@ -189,34 +189,40 @@ const categoryMap = {
                 }
             });
 
-            // --- 2. DONUT CHART (FULL & THICK) ---
-            const ctxExp = document.getElementById('expenseChart').getContext('2d');
-            if (myChart) myChart.destroy();
-            myChart = new Chart(ctxExp, {
-                type: 'doughnut',
-                data: { labels, datasets: [{ data: pValues, backgroundColor: colors, borderWidth: 2, borderColor: '#ffffff' }] },
-                options: {
-                    maintainAspectRatio: false,
-                    layout: { padding: { left: 40, right: 40, top: 10, bottom: 10 } },
-                    cutout: '40%',
-                    radius: '100%',
-                    plugins: {
-                        legend: { display: false },
-                        datalabels: {
-                            color: (ctx) => colors[ctx.dataIndex % colors.length],
-                            anchor: 'end', align: 'end', offset: 6,
-                            font: { size: 9, weight: 'bold' },
-                            formatter: (val, ctx) => {
-                                let name = ctx.chart.data.labels[ctx.dataIndex];
-                                if (name.length > 8) name = name.substring(0, 7) + '..';
-                                const pct = totalPengeluaran > 0 ? ((val / totalPengeluaran) * 100).toFixed(0) : 0;
-                                return `${name} ${pct}%\n${formatSmart(val)}`;
-                            },
-                            textAlign: 'center'
-                        }
-                    }
-                }
-            });
+            /// --- 2. DONUT CHART (SLIM & COMPACT VERSION) ---
+const ctxExp = document.getElementById('expenseChart').getContext('2d');
+if (myChart) myChart.destroy();
+myChart = new Chart(ctxExp, {
+    type: 'doughnut',
+    data: { labels, datasets: [{ data: pValues, backgroundColor: colors, borderWidth: 2, borderColor: '#ffffff' }] },
+    options: {
+        maintainAspectRatio: false,
+        // Layout padding diperlebar (60) agar teks punya ruang lari ke pinggir
+        layout: { padding: { left: 60, right: 60, top: 10, bottom: 10 } },
+        // Cutout 70% membuat donat terlihat lebih kurus/langsing
+        cutout: '70%', 
+        // Radius 75% membuat lingkaran donat secara keseluruhan mengecil
+        radius: '75%', 
+        plugins: {
+            legend: { display: false },
+            datalabels: {
+                color: (ctx) => colors[ctx.dataIndex % colors.length],
+                anchor: 'end', 
+                align: 'end', 
+                offset: 12, // Memberikan jarak antara donat dan teks
+                font: { size: 9, weight: 'bold' },
+                formatter: (val, ctx) => {
+                    let name = ctx.chart.data.labels[ctx.dataIndex];
+                    // Potong nama jika lebih dari 10 karakter agar hemat tempat
+                    if (name.length > 10) name = name.substring(0, 8) + '..';
+                    const pct = totalPengeluaran > 0 ? ((val / totalPengeluaran) * 100).toFixed(0) : 0;
+                    return `${name}\n${pct}% (${formatSmart(val)})`;
+                },
+                textAlign: 'center'
+            }
+        }
+    }
+});
 
             document.getElementById('chartLegend').innerHTML = labels.map((label, i) => {
                 const val = dataGrouped[label];
