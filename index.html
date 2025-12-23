@@ -74,24 +74,23 @@
         
         Chart.register(ChartDataLabels);
 
-        // Update pada bagian pemetaan ikon
-const categoryMap = {
-    'Makanan & Minuman': { icon: '🍔', bg: 'bg-orange-100' },
-    'Transportasi': { icon: '🚗', bg: 'bg-purple-100' },
-    'Kebutuhan Dapur': { icon: '🥕', bg: 'bg-green-50' },
-    'Belanja Rumah Tangga': { icon: '🛒', bg: 'bg-pink-100' },
-    'Kebutuhan Bayi': { icon: '🍼', bg: 'bg-blue-100' }, // Kategori Baru
-    'Pakaian dan Pribadi': { icon: '👕', bg: 'bg-amber-100' }, // Kategori Baru
-    'Hiburan': { icon: '🎮', bg: 'bg-indigo-100' },
-    'Tagihan': { icon: '📄', bg: 'bg-red-100' },
-    'Kesehatan': { icon: '💊', bg: 'bg-rose-100' },
-    'Gaji': { icon: '💰', bg: 'bg-emerald-100' },
-    'Bonus': { icon: '🎁', bg: 'bg-yellow-100' },
-    'Sosial': { icon: '🤝', bg: 'bg-blue-50' },
-    'Infaq': { icon: '🌙', bg: 'bg-teal-100' },
-    'Zakat': { icon: '🕌', bg: 'bg-lime-100' }, // Kategori Baru
-    'Lainnya': { icon: '✨', bg: 'bg-gray-100' }
-};
+        const categoryMap = {
+            'Makanan & Minuman': { icon: '🍔', bg: 'bg-orange-100' },
+            'Transportasi': { icon: '🚗', bg: 'bg-purple-100' },
+            'Kebutuhan Dapur': { icon: '🥕', bg: 'bg-green-50' },
+            'Belanja Rumah Tangga': { icon: '🛒', bg: 'bg-pink-100' },
+            'Kebutuhan Bayi': { icon: '🍼', bg: 'bg-blue-100' },
+            'Pakaian dan Pribadi': { icon: '👕', bg: 'bg-amber-100' },
+            'Hiburan': { icon: '🎮', bg: 'bg-indigo-100' },
+            'Tagihan': { icon: '📄', bg: 'bg-red-100' },
+            'Kesehatan': { icon: '💊', bg: 'bg-rose-100' },
+            'Gaji': { icon: '💰', bg: 'bg-emerald-100' },
+            'Bonus': { icon: '🎁', bg: 'bg-yellow-100' },
+            'Sosial': { icon: '🤝', bg: 'bg-blue-50' },
+            'Infaq': { icon: '🌙', bg: 'bg-teal-100' },
+            'Zakat': { icon: '🕌', bg: 'bg-lime-100' },
+            'Lainnya': { icon: '✨', bg: 'bg-gray-100' }
+        };
 
         let myChart = null, trendChart = null, dailyChart = null;
         const formatIDR = (n) => "Rp " + (n || 0).toLocaleString('id-ID');
@@ -165,7 +164,6 @@ const categoryMap = {
             const labels = Object.keys(dataGrouped), pValues = Object.values(dataGrouped);
             const colors = ['#3b82f6', '#ef4444', '#10b981', '#f59e0b', '#8b5cf6', '#06b6d4', '#4ade80', '#fb923c'];
 
-            // --- 1. DAILY CHART ---
             const dailyData = {};
             for(let i=6; i>=0; i--) {
                 const d = new Date(); d.setDate(d.getDate() - i);
@@ -193,40 +191,35 @@ const categoryMap = {
                 }
             });
 
-            /// --- 2. DONUT CHART (SLIM & COMPACT VERSION) ---
-const ctxExp = document.getElementById('expenseChart').getContext('2d');
-if (myChart) myChart.destroy();
-myChart = new Chart(ctxExp, {
-    type: 'doughnut',
-    data: { labels, datasets: [{ data: pValues, backgroundColor: colors, borderWidth: 2, borderColor: '#ffffff' }] },
-    options: {
-        maintainAspectRatio: false,
-        // Layout padding diperlebar (60) agar teks punya ruang lari ke pinggir
-        layout: { padding: { left: 60, right: 60, top: 10, bottom: 10 } },
-        // Cutout 70% membuat donat terlihat lebih kurus/langsing
-        cutout: '70%', 
-        // Radius 75% membuat lingkaran donat secara keseluruhan mengecil
-        radius: '75%', 
-        plugins: {
-            legend: { display: false },
-            datalabels: {
-                color: (ctx) => colors[ctx.dataIndex % colors.length],
-                anchor: 'end', 
-                align: 'end', 
-                offset: 12, // Memberikan jarak antara donat dan teks
-                font: { size: 9, weight: 'bold' },
-                formatter: (val, ctx) => {
-                    let name = ctx.chart.data.labels[ctx.dataIndex];
-                    // Potong nama jika lebih dari 10 karakter agar hemat tempat
-                    if (name.length > 10) name = name.substring(0, 8) + '..';
-                    const pct = totalPengeluaran > 0 ? ((val / totalPengeluaran) * 100).toFixed(0) : 0;
-                    return `${name}\n${pct}% (${formatSmart(val)})`;
-                },
-                textAlign: 'center'
-            }
-        }
-    }
-});
+            const ctxExp = document.getElementById('expenseChart').getContext('2d');
+            if (myChart) myChart.destroy();
+            myChart = new Chart(ctxExp, {
+                type: 'doughnut',
+                data: { labels, datasets: [{ data: pValues, backgroundColor: colors, borderWidth: 2, borderColor: '#ffffff' }] },
+                options: {
+                    maintainAspectRatio: false,
+                    layout: { padding: { left: 60, right: 60, top: 10, bottom: 10 } },
+                    cutout: '70%', 
+                    radius: '75%', 
+                    plugins: {
+                        legend: { display: false },
+                        datalabels: {
+                            color: (ctx) => colors[ctx.dataIndex % colors.length],
+                            anchor: 'end', 
+                            align: 'end', 
+                            offset: 12,
+                            font: { size: 9, weight: 'bold' },
+                            formatter: (val, ctx) => {
+                                let name = ctx.chart.data.labels[ctx.dataIndex];
+                                if (name.length > 10) name = name.substring(0, 8) + '..';
+                                const pct = totalPengeluaran > 0 ? ((val / totalPengeluaran) * 100).toFixed(0) : 0;
+                                return `${name}\n${pct}% (${formatSmart(val)})`;
+                            },
+                            textAlign: 'center'
+                        }
+                    }
+                }
+            });
 
             document.getElementById('chartLegend').innerHTML = labels.map((label, i) => {
                 const val = dataGrouped[label];
@@ -257,8 +250,8 @@ myChart = new Chart(ctxExp, {
                     labels: last5Months.map(l => l.split(' ')[0]),
                     datasets: [
                         { type: 'line', data: expenseData, borderColor: '#ef4444', borderWidth: 2, pointRadius: 0, tension: 0.4, fill: false },
-                        { type: 'bar', label: 'Masuk', data: incomeData, backgroundColor: 'rgba(16, 185, 129, 0.2)', borderRadius: 4, barPercentage: 0.5 },
-                        { type: 'bar', label: 'Keluar', data: expenseData, backgroundColor: 'rgba(239, 68, 68, 0.2)', borderRadius: 4, barPercentage: 0.5 }
+                        { type: 'bar', label: 'Masuk', data: incomeData, backgroundColor: 'rgba(16, 185, 129, 0.2)', borderRadius: 4, barPercentage: 0.3, categoryPercentage: 0.8 },
+                        { type: 'bar', label: 'Keluar', data: expenseData, backgroundColor: 'rgba(239, 68, 68, 0.2)', borderRadius: 4, barPercentage: 0.3, categoryPercentage: 0.8 }
                     ]
                 },
                 options: {
@@ -267,7 +260,14 @@ myChart = new Chart(ctxExp, {
                         legend: { display: true, position: 'bottom', labels: { boxWidth: 8, font: { size: 9 } } },
                         datalabels: { anchor: 'end', align: 'top', font: { weight: 'bold', size: 9 }, color: (ctx) => ctx.datasetIndex === 1 ? '#10b981' : '#ef4444', formatter: (v) => formatSmart(v), display: (ctx) => ctx.dataset.type === 'bar' }
                     },
-                    scales: { y: { display: false, beginAtZero: true }, x: { grid: { display: false }, ticks: { font: { size: 9, weight: 'bold' } } } }
+                    scales: { 
+                        y: { 
+                            display: false, 
+                            beginAtZero: true,
+                            grace: '30%' // Memberikan ruang 30% di atas bar tertinggi agar label angka tidak terpotong
+                        }, 
+                        x: { grid: { display: false }, ticks: { font: { size: 9, weight: 'bold' } } } 
+                    }
                 }
             });
         }
@@ -278,6 +278,3 @@ myChart = new Chart(ctxExp, {
     </script>
 </body>
 </html>
-
-
-
