@@ -132,12 +132,11 @@
             
             const listEl = document.getElementById('transactionList');
             listEl.innerHTML = '';
-            (data.transaksi || []).sort((a,b) => new Date(b.tanggal) - new Date(a.tanggal)).slice(0, 25).forEach(item => {
+            (data.transaksi || []).sort((a,b) => new Date(b.tanggal) - new Date(a.tanggal)).forEach(item => {
                 const isM = item.jenis?.toLowerCase() === 'pemasukan';
                 const catInfo = categoryMap[item.kategori] || categoryMap['Lainnya'];
                 const tglObj = new Date(item.tanggal);
                 
-                // --- PERUBAHAN DI SINI: MENAMBAHKAN NAMA HARI ---
                 const namaHari = tglObj.toLocaleDateString('id-ID', { weekday: 'long' });
                 const tglFormat = tglObj.toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: '2-digit' });
                 
