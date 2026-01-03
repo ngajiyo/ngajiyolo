@@ -246,6 +246,254 @@
             }).join('');
         }
 
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Finance Dashboard - Merged Category</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2"></script>
+    <style>
+        body { background-color: var(--tg-theme-secondary-bg-color, #f3f4f6); color: var(--tg-theme-text-color, #1f2937); overflow-x: hidden; }
+        .floating-header { position: sticky; top: 0; z-index: 50; background-color: var(--tg-theme-secondary-bg-color, #f3f4f6); backdrop-filter: blur(10px); }
+        .glass-card { background: var(--tg-theme-bg-color, #ffffff); border: 1px solid rgba(0,0,0,0.05); }
+        .tab-active { border-bottom: 2px solid #2563eb; color: #2563eb; }
+        .tab-inactive { border-bottom: 2px solid transparent; color: #9ca3af; }
+        canvas { max-width: 100% !important; }
+    </style>
+</head>
+<body class="antialiased font-sans">
+    
+    <div class="floating-header px-4 pt-4 pb-2 shadow-sm">
+        <div class="flex items-center justify-between mb-3">
+            <h1 class="text-lg font-bold">Keuangan Saya</h1>
+            <select id="monthFilter" class="text-xs bg-transparent font-bold text-blue-600 outline-none border-none cursor-pointer"></select>
+        </div>
+
+        <div class="bg-blue-600 rounded-2xl p-5 shadow-lg text-white mb-2">
+            <p class="text-[10px] opacity-80 font-medium uppercase tracking-wider">Saldo Bulan Ini</p>
+            <h2 id="totalSaldo" class="text-3xl font-bold mt-1">Rp 0</h2>
+            <div class="flex gap-4 mt-4 pt-4 border-t border-blue-500/50 text-[11px]">
+                <div class="flex-1">Pemasukan<span id="totalMasuk" class="block font-bold text-green-300">Rp 0</span></div>
+                <div class="flex-1 text-right">Pengeluaran<span id="totalKeluar" class="block font-bold text-red-300">Rp 0</span></div>
+            </div>
+        </div>
+
+        <div class="flex mt-4 border-b border-gray-100">
+            <button id="btnRiwayat" onclick="switchTab('riwayat')" class="flex-1 py-3 text-[10px] font-bold uppercase tracking-wider tab-active transition-all">Riwayat</button>
+            <button id="btnAnalisa" onclick="switchTab('analisa')" class="flex-1 py-3 text-[10px] font-bold uppercase tracking-wider tab-inactive transition-all">Analisa</button>
+        </div>
+    </div>
+
+    <main class="px-4 py-4 pb-10">
+        <div id="secRiwayat">
+            <div id="transactionList" class="space-y-3"></div>
+        </div>
+
+        <div id="secAnalisa" class="hidden space-y-6">
+            <div class="glass-card p-4 rounded-3xl shadow-sm">
+                <h3 class="text-[10px] font-bold mb-8 text-center text-gray-400 uppercase tracking-widest">7 Hari Terakhir</h3>
+                <div class="h-48"><canvas id="dailyChart"></canvas></div>
+            </div>
+
+            <div class="glass-card p-4 rounded-3xl shadow-sm overflow-hidden">
+                <h3 class="text-[10px] font-bold mb-4 text-gray-400 uppercase tracking-widest text-center">Proporsi Kategori</h3>
+                <div class="w-full h-72 relative">
+                    <canvas id="expenseChart"></canvas>
+                </div>
+                <div id="chartLegend" class="w-full mt-4 space-y-2 border-t pt-4"></div>
+            </div>
+
+            <div class="glass-card p-4 rounded-3xl shadow-sm">
+                <h3 class="text-[10px] font-bold mb-8 text-center text-gray-400 uppercase tracking-widest">Tren 5 Bulan</h3>
+                <div class="h-56"><canvas id="trendChart"></canvas></div>
+            </div>
+        </div>
+    </main>
+
+    <script>
+        const SUPABASE_URL = 'https://pfichwnfffjzibusofao.supabase.co';
+        const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBmaWNod25mZmZqemlidXNvZmFvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjU4MzE0NjIsImV4cCI6MjA4MTQwNzQ2Mn0.Hp9nGeQEiNXnKoPkeSY2Qoey0HP2Er0E4TbwBe_y64c';
+        const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+        
+        Chart.register(ChartDataLabels);
+
+        const categoryMap = {
+            'Makanan & Minuman': { icon: '🍔', bg: 'bg-orange-100' },
+            'Transportasi': { icon: '🚗', bg: 'bg-purple-100' },
+            'Kebutuhan Dapur': { icon: '🥕', bg: 'bg-green-50' },
+            'Belanja Rumah Tangga': { icon: '🛒', bg: 'bg-pink-100' },
+            'Kebutuhan Bayi': { icon: '🍼', bg: 'bg-blue-100' },
+            'Pakaian dan Pribadi': { icon: '👕', bg: 'bg-amber-100' },
+            'Hiburan': { icon: '🎮', bg: 'bg-indigo-100' },
+            'Tagihan': { icon: '📄', bg: 'bg-red-100' },
+            'Kesehatan': { icon: '💊', bg: 'bg-rose-100' },
+            'Gaji': { icon: '💰', bg: 'bg-emerald-100' },
+            'Bonus': { icon: '🎁', bg: 'bg-yellow-100' },
+            'Sosial': { icon: '🤝', bg: 'bg-blue-50' },
+            'Infaq': { icon: '🌙', bg: 'bg-teal-100' },
+            'Zakat': { icon: '🕌', bg: 'bg-lime-100' },
+            'Lainnya': { icon: '✨', bg: 'bg-gray-100' }
+        };
+
+        let myChart = null, trendChart = null, dailyChart = null;
+        const formatIDR = (n) => "Rp " + (n || 0).toLocaleString('id-ID');
+        const formatSmart = (val) => {
+            if (!val || val === 0) return "";
+            if (val >= 1000000) return (val / 1000000).toFixed(1) + "jt";
+            if (val >= 1000) return (val / 1000).toFixed(0) + "K";
+            return val;
+        };
+
+        function switchTab(tab) {
+            const isRiwayat = tab === 'riwayat';
+            document.getElementById('secRiwayat').classList.toggle('hidden', !isRiwayat);
+            document.getElementById('secAnalisa').classList.toggle('hidden', isRiwayat);
+            document.getElementById('btnRiwayat').className = `flex-1 py-3 text-[10px] font-bold uppercase tracking-wider ${isRiwayat ? 'tab-active' : 'tab-inactive'}`;
+            document.getElementById('btnAnalisa').className = `flex-1 py-3 text-[10px] font-bold uppercase tracking-wider ${!isRiwayat ? 'tab-active' : 'tab-inactive'}`;
+            if(!isRiwayat) loadTrendData();
+        }
+
+        async function initFilter() {
+            const { data } = await supabaseClient.from('transaksi').select('tanggal').order('tanggal', { ascending: false });
+            if (data && data.length > 0) {
+                const uniqueMonths = [...new Set(data.map(i => {
+                    const d = new Date(i.tanggal);
+                    return d.toLocaleDateString('id-ID', { month: 'long', year: 'numeric' });
+                }))];
+                document.getElementById('monthFilter').innerHTML = uniqueMonths.map(m => `<option value="${m}">${m}</option>`).join('');
+                loadData(uniqueMonths[0]);
+            }
+        }
+
+        async function loadData(filterValue) {
+            const { data, error } = await supabaseClient.rpc('get_monthly_summary', { target_month_year: filterValue });
+            if (error) return;
+            document.getElementById('totalSaldo').innerText = formatIDR(data.saldo);
+            document.getElementById('totalMasuk').innerText = formatIDR(data.pemasukan);
+            document.getElementById('totalKeluar').innerText = formatIDR(data.pengeluaran);
+            updateAnalisaChart(data.transaksi || [], data.pengeluaran);
+            
+            const listEl = document.getElementById('transactionList');
+            listEl.innerHTML = '';
+            (data.transaksi || []).sort((a,b) => new Date(b.tanggal) - new Date(a.tanggal)).forEach(item => {
+                const isM = item.jenis?.toLowerCase() === 'pemasukan';
+                const catInfo = categoryMap[item.kategori] || categoryMap['Lainnya'];
+                const tglObj = new Date(item.tanggal);
+                
+                const namaHari = tglObj.toLocaleDateString('id-ID', { weekday: 'long' });
+                const tglFormat = tglObj.toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: '2-digit' });
+                
+                let waktuInput = item["Waktu Input"] || "";
+                if (waktuInput.includes(':')) {
+                    waktuInput = waktuInput.substring(0, 5); 
+                }
+
+                listEl.insertAdjacentHTML('beforeend', `
+                    <div class="glass-card p-4 rounded-xl flex justify-between items-center ${isM ? 'border-l-4 border-l-green-500' : 'border-l-4 border-l-red-500'}">
+                        <div class="flex items-center gap-4">
+                            <div class="w-10 h-10 rounded-full ${catInfo.bg} flex items-center justify-center text-lg shadow-sm">
+                                ${catInfo.icon}
+                            </div>
+                            <div class="flex flex-col gap-0.5">
+                                <p class="font-bold text-sm text-gray-800 leading-tight">${item.item || '-'}</p>
+                                <p class="text-[10px] text-blue-600 font-bold uppercase tracking-wide">${item.kategori}</p>
+                                <p class="text-[10px] text-gray-400 font-medium">${namaHari}, ${tglFormat} • ${waktuInput}</p>
+                            </div>
+                        </div>
+                        <p class="font-black text-sm ${isM ? 'text-green-600' : 'text-red-600'}">
+                            ${isM ? '+' : '-'} Rp${item.jumlah.toLocaleString('id-ID')}
+                        </p>
+                    </div>`);
+            });
+        }
+
+        function updateAnalisaChart(transactions, totalPengeluaran) {
+            const pengeluaranItems = transactions.filter(t => t.jenis?.toLowerCase() !== 'pemasukan');
+            const dataGrouped = {};
+            pengeluaranItems.forEach(t => dataGrouped[t.kategori] = (dataGrouped[t.kategori] || 0) + t.jumlah);
+            
+            const sortedEntries = Object.entries(dataGrouped).sort((a, b) => b[1] - a[1]);
+            const labels = sortedEntries.map(e => e[0]);
+            const pValues = sortedEntries.map(e => e[1]);
+
+            const colors = ['#3b82f6', '#ef4444', '#10b981', '#f59e0b', '#8b5cf6', '#06b6d4', '#4ade80', '#fb923c'];
+
+            const dailyData = {};
+            for(let i=6; i>=0; i--) {
+                const d = new Date(); d.setDate(d.getDate() - i);
+                dailyData[d.toISOString().split('T')[0]] = 0;
+            }
+            pengeluaranItems.forEach(t => { if (dailyData.hasOwnProperty(t.tanggal)) dailyData[t.tanggal] += t.jumlah; });
+
+            const ctxDaily = document.getElementById('dailyChart').getContext('2d');
+            if (dailyChart) dailyChart.destroy();
+            dailyChart = new Chart(ctxDaily, {
+                data: {
+                    labels: Object.keys(dailyData).map(date => new Date(date).toLocaleDateString('id-ID', { weekday: 'short' })),
+                    datasets: [
+                        { type: 'line', data: Object.values(dailyData), borderColor: '#ef4444', borderWidth: 2, pointRadius: 0, tension: 0.4, fill: false },
+                        { type: 'bar', data: Object.values(dailyData), backgroundColor: 'rgba(239, 68, 68, 0.1)', borderRadius: 5, barPercentage: 0.6 }
+                    ]
+                },
+                options: {
+                    maintainAspectRatio: false,
+                    plugins: { 
+                        legend: { display: false },
+                        datalabels: { anchor: 'end', align: 'top', color: '#ef4444', font: { weight: 'bold', size: 9 }, formatter: (v) => formatSmart(v), display: (ctx) => ctx.dataset.type === 'bar' }
+                    },
+                    scales: { y: { display: false, beginAtZero: true, grace: '20%' }, x: { grid: { display: false }, ticks: { font: { size: 9, weight: 'bold' } } } }
+                }
+            });
+
+            const ctxExp = document.getElementById('expenseChart').getContext('2d');
+            if (myChart) myChart.destroy();
+            myChart = new Chart(ctxExp, {
+                type: 'doughnut',
+                data: { labels, datasets: [{ data: pValues, backgroundColor: colors, borderWidth: 2, borderColor: '#ffffff' }] },
+                options: {
+                    maintainAspectRatio: false,
+                    layout: { padding: { left: 60, right: 60, top: 10, bottom: 10 } },
+                    cutout: '70%', 
+                    radius: '75%', 
+                    plugins: {
+                        legend: { display: false },
+                        datalabels: {
+                            color: (ctx) => colors[ctx.dataIndex % colors.length],
+                            anchor: 'end', 
+                            align: 'end', 
+                            offset: 12,
+                            font: { size: 9, weight: 'bold' },
+                            formatter: (val, ctx) => {
+                                let name = ctx.chart.data.labels[ctx.dataIndex];
+                                if (name.length > 10) name = name.substring(0, 8) + '..';
+                                const pct = totalPengeluaran > 0 ? ((val / totalPengeluaran) * 100).toFixed(0) : 0;
+                                return `${name}\n${pct}% (${formatSmart(val)})`;
+                            },
+                            textAlign: 'center'
+                        }
+                    }
+                }
+            });
+
+            document.getElementById('chartLegend').innerHTML = labels.map((label, i) => {
+                const val = pValues[i];
+                const pct = totalPengeluaran > 0 ? ((val / totalPengeluaran) * 100).toFixed(1) : 0;
+                return `
+                <div class="flex items-center justify-between py-1">
+                    <div class="flex items-center gap-2 text-[11px]">
+                        <div class="w-1.5 h-1.5 rounded-full" style="background-color: ${colors[i % colors.length]}"></div>
+                        <span class="font-bold text-gray-700">${label} <span class="text-blue-500 font-normal ml-1">${pct}%</span></span>
+                    </div>
+                    <span class="text-[11px] font-black text-gray-900">${formatIDR(val)}</span>
+                </div>`;
+            }).join('');
+        }
+
         async function loadTrendData() {
             const options = Array.from(document.getElementById('monthFilter').options).map(o => o.value).reverse();
             const last5Months = options.slice(-5);
@@ -289,3 +537,9 @@
     </script>
 </body>
 </html>
+
+
+    </script>
+</body>
+</html>
+
