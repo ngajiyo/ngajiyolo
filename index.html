@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Finance Dashboard - Merged Category</title>
+    <title>Finance Dashboard - Mirror Trend</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
@@ -15,7 +15,6 @@
         .glass-card { background: var(--tg-theme-bg-color, #ffffff); border: 1px solid rgba(0,0,0,0.05); }
         .tab-active { border-bottom: 2px solid #2563eb; color: #2563eb; }
         .tab-inactive { border-bottom: 2px solid transparent; color: #9ca3af; }
-        canvas { max-width: 100% !important; }
     </style>
 </head>
 <body class="antialiased font-sans">
@@ -61,8 +60,8 @@
             </div>
 
             <div class="glass-card p-4 rounded-3xl shadow-sm">
-                <h3 class="text-[10px] font-bold mb-8 text-center text-gray-400 uppercase tracking-widest">Tren 5 Bulan</h3>
-                <div class="h-64"><canvas id="trendChart"></canvas></div>
+                <h3 class="text-[10px] font-bold mb-8 text-center text-gray-400 uppercase tracking-widest">Tren Arus Kas (6 Bulan)</h3>
+                <div class="h-80"><canvas id="trendChart"></canvas></div>
             </div>
         </div>
     </main>
@@ -93,12 +92,13 @@
         };
 
         let myChart = null, trendChart = null, dailyChart = null;
-        const formatIDR = (n) => "Rp " + (n || 0).toLocaleString('id-ID');
+        const formatIDR = (n) => "Rp " + Math.abs(n || 0).toLocaleString('id-ID');
         const formatSmart = (val) => {
-            if (!val || val === 0) return "0";
-            if (val >= 1000000) return (val / 1000000).toFixed(1) + "jt";
-            if (val >= 1000) return (val / 1000).toFixed(0) + "K";
-            return val;
+            const v = Math.abs(val);
+            if (!v || v === 0) return "0";
+            if (v >= 1000000) return (v / 1000000).toFixed(1) + "jt";
+            if (v >= 1000) return (v / 1000).toFixed(0) + "K";
+            return v;
         };
 
         function switchTab(tab) {
@@ -163,7 +163,6 @@
             const pengeluaranItems = transactions.filter(t => t.jenis?.toLowerCase() !== 'pemasukan');
             const dataGrouped = {};
             pengeluaranItems.forEach(t => dataGrouped[t.kategori] = (dataGrouped[t.kategori] || 0) + t.jumlah);
-            
             const sortedEntries = Object.entries(dataGrouped).sort((a, b) => b[1] - a[1]);
             const labels = sortedEntries.map(e => e[0]);
             const pValues = sortedEntries.map(e => e[1]);
@@ -186,14 +185,7 @@
                         { type: 'bar', data: Object.values(dailyData), backgroundColor: 'rgba(239, 68, 68, 0.1)', borderRadius: 5, barPercentage: 0.6 }
                     ]
                 },
-                options: {
-                    maintainAspectRatio: false,
-                    plugins: { 
-                        legend: { display: false },
-                        datalabels: { anchor: 'end', align: 'top', color: '#ef4444', font: { weight: 'bold', size: 9 }, formatter: (v) => formatSmart(v), display: (ctx) => ctx.dataset.type === 'bar' }
-                    },
-                    scales: { y: { display: false, beginAtZero: true, grace: '20%' }, x: { grid: { display: false }, ticks: { font: { size: 9, weight: 'bold' } } } }
-                }
+                options: { maintainAspectRatio: false, plugins: { legend: { display: false }, datalabels: { anchor: 'end', align: 'top', color: '#ef4444', font: { weight: 'bold', size: 9 }, formatter: (v) => formatSmart(v), display: (ctx) => ctx.dataset.type === 'bar' } }, scales: { y: { display: false, beginAtZero: true }, x: { grid: { display: false } } } }
             });
 
             const ctxExp = document.getElementById('expenseChart').getContext('2d');
@@ -201,97 +193,78 @@
             myChart = new Chart(ctxExp, {
                 type: 'doughnut',
                 data: { labels, datasets: [{ data: pValues, backgroundColor: colors, borderWidth: 2, borderColor: '#ffffff' }] },
-                options: {
-                    maintainAspectRatio: false,
-                    layout: { padding: 60 },
-                    cutout: '70%',
-                    plugins: {
-                        legend: { display: false },
-                        datalabels: {
-                            color: (ctx) => colors[ctx.dataIndex % colors.length],
-                            anchor: 'end', align: 'end', offset: 12,
-                            font: { size: 9, weight: 'bold' },
-                            formatter: (val, ctx) => {
-                                let name = ctx.chart.data.labels[ctx.dataIndex];
-                                if (name.length > 10) name = name.substring(0, 8) + '..';
-                                const pct = totalPengeluaran > 0 ? ((val / totalPengeluaran) * 100).toFixed(0) : 0;
-                                return `${name}\n${pct}%`;
-                            },
-                            textAlign: 'center'
-                        }
-                    }
-                }
+                options: { maintainAspectRatio: false, layout: { padding: 60 }, cutout: '70%', plugins: { legend: { display: false }, datalabels: { color: (ctx) => colors[ctx.dataIndex % colors.length], anchor: 'end', align: 'end', offset: 12, font: { size: 9, weight: 'bold' }, formatter: (val, ctx) => { let name = ctx.chart.data.labels[ctx.dataIndex]; if (name.length > 10) name = name.substring(0, 8) + '..'; const pct = totalPengeluaran > 0 ? ((val / totalPengeluaran) * 100).toFixed(0) : 0; return `${name}\n${pct}%`; }, textAlign: 'center' } } }
             });
 
             document.getElementById('chartLegend').innerHTML = labels.map((label, i) => {
                 const val = pValues[i];
                 const pct = totalPengeluaran > 0 ? ((val / totalPengeluaran) * 100).toFixed(1) : 0;
-                return `
-                <div class="flex items-center justify-between py-1">
-                    <div class="flex items-center gap-2 text-[11px]">
-                        <div class="w-1.5 h-1.5 rounded-full" style="background-color: ${colors[i % colors.length]}"></div>
-                        <span class="font-bold text-gray-700">${label} <span class="text-blue-500 font-normal ml-1">${pct}%</span></span>
-                    </div>
-                    <span class="text-[11px] font-black text-gray-900">${formatIDR(val)}</span>
-                </div>`;
+                return `<div class="flex items-center justify-between py-1"><div class="flex items-center gap-2 text-[11px]"><div class="w-1.5 h-1.5 rounded-full" style="background-color: ${colors[i % colors.length]}"></div><span class="font-bold text-gray-700">${label} <span class="text-blue-500 font-normal ml-1">${pct}%</span></span></div><span class="text-[11px] font-black text-gray-900">${formatIDR(val)}</span></div>`;
             }).join('');
         }
 
         async function loadTrendData() {
             const options = Array.from(document.getElementById('monthFilter').options).map(o => o.value).reverse();
-            const last5Months = options.slice(-5);
+            const last6Months = options.slice(-6);
             const incomeData = [], expenseData = [];
             
-            for (const month of last5Months) {
+            for (const month of last6Months) {
                 const { data } = await supabaseClient.rpc('get_monthly_summary', { target_month_year: month });
                 incomeData.push(data?.pemasukan || 0); 
-                expenseData.push(data?.pengeluaran || 0);
+                expenseData.push(-(data?.pengeluaran || 0)); // Nilai negatif untuk arah ke bawah
             }
 
             const ctx = document.getElementById('trendChart').getContext('2d');
             if (trendChart) trendChart.destroy();
             trendChart = new Chart(ctx, {
                 data: {
-                    labels: last5Months.map(l => l.split(' ')[0]),
+                    labels: last6Months.map(l => l.split(' ')[0]),
                     datasets: [
                         { 
-                            type: 'line', label: 'Tren Keluar', data: expenseData, 
-                            borderColor: '#ef4444', borderWidth: 2, pointRadius: 0, tension: 0.4, fill: false,
-                            xAxisId: 'x'
+                            type: 'line', label: 'Tren Masuk', data: incomeData, 
+                            borderColor: '#10b981', borderWidth: 2, pointRadius: 3, tension: 0.4, fill: false,
+                            datalabels: { display: false }, stack: 'combined'
                         },
                         { 
-                            type: 'line', label: 'Tren Masuk', data: incomeData, 
-                            borderColor: '#10b981', borderWidth: 2, pointRadius: 0, tension: 0.4, fill: false,
-                            xAxisId: 'x'
+                            type: 'line', label: 'Tren Keluar', data: expenseData, 
+                            borderColor: '#ef4444', borderWidth: 2, pointRadius: 3, tension: 0.4, fill: false,
+                            datalabels: { display: false }, stack: 'combined'
                         },
                         { 
                             type: 'bar', label: 'Masuk', data: incomeData, 
-                            backgroundColor: 'rgba(16, 185, 129, 0.1)', borderRadius: 4, 
-                            barPercentage: 0.8, categoryPercentage: 0.6 
+                            backgroundColor: 'rgba(16, 185, 129, 0.8)', borderRadius: 4,
+                            barPercentage: 0.5, datalabels: { anchor: 'end', align: 'top' }, stack: 'combined'
                         },
                         { 
                             type: 'bar', label: 'Keluar', data: expenseData, 
-                            backgroundColor: 'rgba(239, 68, 68, 0.1)', borderRadius: 4, 
-                            barPercentage: 0.8, categoryPercentage: 0.6 
+                            backgroundColor: 'rgba(239, 68, 68, 0.8)', borderRadius: 4,
+                            barPercentage: 0.5, datalabels: { anchor: 'start', align: 'bottom' }, stack: 'combined'
                         }
                     ]
                 },
                 options: {
                     maintainAspectRatio: false,
+                    interaction: { mode: 'index', intersect: false },
                     plugins: { 
-                        legend: { display: true, position: 'bottom', labels: { boxWidth: 8, font: { size: 9 } } },
+                        legend: { display: true, position: 'bottom', labels: { boxWidth: 10, font: { size: 10 } } },
                         datalabels: { 
-                            anchor: 'end', align: 'top', font: { weight: 'bold', size: 9 }, 
-                            color: (ctx) => ctx.datasetIndex % 2 === 0 ? '#ef4444' : '#10b981',
+                            font: { weight: 'bold', size: 9 }, 
+                            color: (ctx) => ctx.dataset.data[ctx.dataIndex] >= 0 ? '#10b981' : '#ef4444',
                             formatter: (v) => formatSmart(v),
-                            display: (ctx) => ctx.dataset.type === 'bar' 
+                            display: (ctx) => ctx.dataset.type === 'bar'
                         }
                     },
                     scales: { 
-                        y: { display: false, beginAtZero: true, grace: '30%' }, 
+                        y: { 
+                            display: false, 
+                            beginAtZero: true, 
+                            grace: '40%',
+                            stacked: false 
+                        }, 
                         x: { 
-                            grid: { display: false }, 
-                            ticks: { font: { size: 9, weight: 'bold' } }
+                            grid: { display: true, color: 'rgba(0,0,0,0.05)', drawBorder: false }, 
+                            ticks: { font: { size: 10, weight: 'bold' } },
+                            stacked: true // Membuat bar berada di satu kolom vertikal yang sama
                         } 
                     }
                 }
