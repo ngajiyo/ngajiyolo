@@ -92,7 +92,14 @@
         };
 
         let myChart = null, trendChart = null, dailyChart = null;
-        const formatIDR = (n) => "Rp " + Math.abs(n || 0).toLocaleString('id-ID');
+
+        // PERBAIKAN: Fungsi formatIDR sekarang mendukung angka negatif
+        const formatIDR = (n) => {
+            const num = n || 0;
+            const sign = num < 0 ? "-" : "";
+            return sign + "Rp " + Math.abs(num).toLocaleString('id-ID');
+        };
+
         const formatSmart = (val) => {
             const v = Math.abs(val);
             if (!v || v === 0) return "0";
@@ -125,6 +132,8 @@
         async function loadData(filterValue) {
             const { data, error } = await supabaseClient.rpc('get_monthly_summary', { target_month_year: filterValue });
             if (error) return;
+            
+            // Saldo akan menampilkan minus jika data.saldo bernilai negatif
             document.getElementById('totalSaldo').innerText = formatIDR(data.saldo);
             document.getElementById('totalMasuk').innerText = formatIDR(data.pemasukan);
             document.getElementById('totalKeluar').innerText = formatIDR(data.pengeluaran);
@@ -211,7 +220,7 @@
             for (const month of last6Months) {
                 const { data } = await supabaseClient.rpc('get_monthly_summary', { target_month_year: month });
                 incomeData.push(data?.pemasukan || 0); 
-                expenseData.push(-(data?.pengeluaran || 0)); // Nilai negatif untuk arah ke bawah
+                expenseData.push(-(data?.pengeluaran || 0)); 
             }
 
             const ctx = document.getElementById('trendChart').getContext('2d');
@@ -255,17 +264,8 @@
                         }
                     },
                     scales: { 
-                        y: { 
-                            display: false, 
-                            beginAtZero: true, 
-                            grace: '40%',
-                            stacked: false 
-                        }, 
-                        x: { 
-                            grid: { display: true, color: 'rgba(0,0,0,0.05)', drawBorder: false }, 
-                            ticks: { font: { size: 10, weight: 'bold' } },
-                            stacked: true // Membuat bar berada di satu kolom vertikal yang sama
-                        } 
+                        y: { display: false, beginAtZero: true, grace: '40%', stacked: false }, 
+                        x: { grid: { display: true, color: 'rgba(0,0,0,0.05)', drawBorder: false }, ticks: { font: { size: 10, weight: 'bold' } }, stacked: true } 
                     }
                 }
             });
