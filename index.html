@@ -93,7 +93,6 @@
 
         let myChart = null, trendChart = null, dailyChart = null;
 
-        // PERBAIKAN: Fungsi formatIDR sekarang mendukung angka negatif
         const formatIDR = (n) => {
             const num = n || 0;
             const sign = num < 0 ? "-" : "";
@@ -107,6 +106,38 @@
             if (v >= 1000) return (v / 1000).toFixed(0) + "K";
             return v;
         };
+
+        // FUNGSI EDIT - Menggunakan new_id
+        async function editTransaction(new_id, currentItem, currentJumlah) {
+            const newItem = prompt("Ubah Nama Item:", currentItem);
+            if (newItem === null) return;
+
+            const newJumlahInput = prompt("Ubah Jumlah (Angka saja):", currentJumlah);
+            if (newJumlahInput === null) return;
+            const newJumlah = parseInt(newJumlahInput);
+
+            const { error } = await supabaseClient
+                .from('transaksi')
+                .update({ item: newItem, jumlah: newJumlah })
+                .eq('new_id', new_id);
+
+            if (error) {
+                alert("Gagal mengupdate: " + error.message);
+            } else {
+                loadData(document.getElementById('monthFilter').value);
+            }
+        }
+
+        // FUNGSI HAPUS - Menggunakan new_id
+        async function deleteTransaction(new_id, itemNama) {
+            if (!confirm(`Hapus transaksi "${itemNama || 'ini'}"?`)) return;
+            const { error } = await supabaseClient.from('transaksi').delete().eq('new_id', new_id);
+            if (error) {
+                alert("Gagal menghapus: " + error.message);
+            } else {
+                loadData(document.getElementById('monthFilter').value);
+            }
+        }
 
         function switchTab(tab) {
             const isRiwayat = tab === 'riwayat';
@@ -133,7 +164,6 @@
             const { data, error } = await supabaseClient.rpc('get_monthly_summary', { target_month_year: filterValue });
             if (error) return;
             
-            // Saldo akan menampilkan minus jika data.saldo bernilai negatif
             document.getElementById('totalSaldo').innerText = formatIDR(data.saldo);
             document.getElementById('totalMasuk').innerText = formatIDR(data.pemasukan);
             document.getElementById('totalKeluar').innerText = formatIDR(data.pengeluaran);
@@ -161,9 +191,23 @@
                                 <p class="text-[10px] text-gray-400 font-medium">${namaHari}, ${tglFormat} • ${waktuInput}</p>
                             </div>
                         </div>
-                        <p class="font-black text-sm ${isM ? 'text-green-600' : 'text-red-600'}">
-                            ${isM ? '+' : '-'} Rp${(item.jumlah || 0).toLocaleString('id-ID')}
-                        </p>
+                        <div class="flex flex-col items-end gap-2">
+                            <p class="font-black text-sm ${isM ? 'text-green-600' : 'text-red-600'}">
+                                ${isM ? '+' : '-'} Rp${(item.jumlah || 0).toLocaleString('id-ID')}
+                            </p>
+                            <div class="flex gap-2">
+                                <button onclick="editTransaction('${item.new_id}', '${item.item}', ${item.jumlah})" class="text-gray-300 hover:text-blue-500 transition-colors p-1">
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                                    </svg>
+                                </button>
+                                <button onclick="deleteTransaction('${item.new_id}', '${item.item}')" class="text-gray-300 hover:text-red-500 transition-colors p-1">
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                    </svg>
+                                </button>
+                            </div>
+                        </div>
                     </div>`);
             });
         }
@@ -216,39 +260,21 @@
             const options = Array.from(document.getElementById('monthFilter').options).map(o => o.value).reverse();
             const last6Months = options.slice(-6);
             const incomeData = [], expenseData = [];
-            
             for (const month of last6Months) {
                 const { data } = await supabaseClient.rpc('get_monthly_summary', { target_month_year: month });
                 incomeData.push(data?.pemasukan || 0); 
                 expenseData.push(-(data?.pengeluaran || 0)); 
             }
-
             const ctx = document.getElementById('trendChart').getContext('2d');
             if (trendChart) trendChart.destroy();
             trendChart = new Chart(ctx, {
                 data: {
                     labels: last6Months.map(l => l.split(' ')[0]),
                     datasets: [
-                        { 
-                            type: 'line', label: 'Tren Masuk', data: incomeData, 
-                            borderColor: '#10b981', borderWidth: 2, pointRadius: 3, tension: 0.4, fill: false,
-                            datalabels: { display: false }, stack: 'combined'
-                        },
-                        { 
-                            type: 'line', label: 'Tren Keluar', data: expenseData, 
-                            borderColor: '#ef4444', borderWidth: 2, pointRadius: 3, tension: 0.4, fill: false,
-                            datalabels: { display: false }, stack: 'combined'
-                        },
-                        { 
-                            type: 'bar', label: 'Masuk', data: incomeData, 
-                            backgroundColor: 'rgba(16, 185, 129, 0.8)', borderRadius: 4,
-                            barPercentage: 0.5, datalabels: { anchor: 'end', align: 'top' }, stack: 'combined'
-                        },
-                        { 
-                            type: 'bar', label: 'Keluar', data: expenseData, 
-                            backgroundColor: 'rgba(239, 68, 68, 0.8)', borderRadius: 4,
-                            barPercentage: 0.5, datalabels: { anchor: 'start', align: 'bottom' }, stack: 'combined'
-                        }
+                        { type: 'line', label: 'Tren Masuk', data: incomeData, borderColor: '#10b981', borderWidth: 2, pointRadius: 3, tension: 0.4, fill: false, datalabels: { display: false }, stack: 'combined' },
+                        { type: 'line', label: 'Tren Keluar', data: expenseData, borderColor: '#ef4444', borderWidth: 2, pointRadius: 3, tension: 0.4, fill: false, datalabels: { display: false }, stack: 'combined' },
+                        { type: 'bar', label: 'Masuk', data: incomeData, backgroundColor: 'rgba(16, 185, 129, 0.8)', borderRadius: 4, barPercentage: 0.5, datalabels: { anchor: 'end', align: 'top' }, stack: 'combined' },
+                        { type: 'bar', label: 'Keluar', data: expenseData, backgroundColor: 'rgba(239, 68, 68, 0.8)', borderRadius: 4, barPercentage: 0.5, datalabels: { anchor: 'start', align: 'bottom' }, stack: 'combined' }
                     ]
                 },
                 options: {
@@ -256,17 +282,9 @@
                     interaction: { mode: 'index', intersect: false },
                     plugins: { 
                         legend: { display: true, position: 'bottom', labels: { boxWidth: 10, font: { size: 10 } } },
-                        datalabels: { 
-                            font: { weight: 'bold', size: 9 }, 
-                            color: (ctx) => ctx.dataset.data[ctx.dataIndex] >= 0 ? '#10b981' : '#ef4444',
-                            formatter: (v) => formatSmart(v),
-                            display: (ctx) => ctx.dataset.type === 'bar'
-                        }
+                        datalabels: { font: { weight: 'bold', size: 9 }, color: (ctx) => ctx.dataset.data[ctx.dataIndex] >= 0 ? '#10b981' : '#ef4444', formatter: (v) => formatSmart(v), display: (ctx) => ctx.dataset.type === 'bar' }
                     },
-                    scales: { 
-                        y: { display: false, beginAtZero: true, grace: '40%', stacked: false }, 
-                        x: { grid: { display: true, color: 'rgba(0,0,0,0.05)', drawBorder: false }, ticks: { font: { size: 10, weight: 'bold' } }, stacked: true } 
-                    }
+                    scales: { y: { display: false, beginAtZero: true, grace: '40%', stacked: false }, x: { grid: { display: true, color: 'rgba(0,0,0,0.05)', drawBorder: false }, ticks: { font: { size: 10, weight: 'bold' } }, stacked: true } }
                 }
             });
         }
