@@ -6,7 +6,6 @@
     <title>Finance Dashboard - Mirror Trend</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
-    <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2"></script>
     <style>
@@ -27,10 +26,10 @@
 
         <div class="bg-blue-600 rounded-2xl p-5 shadow-lg text-white mb-2">
             <p class="text-[10px] opacity-80 font-medium uppercase tracking-wider">Saldo Bulan Ini</p>
-            <h2 id="totalSaldo" class="text-3xl font-bold mt-1">Rp 0</h2>
+            <h2 id="totalSaldo" class="text-3xl font-bold mt-1">...</h2>
             <div class="flex gap-4 mt-4 pt-4 border-t border-blue-500/50 text-[11px]">
-                <div class="flex-1">Pemasukan<span id="totalMasuk" class="block font-bold text-green-300">Rp 0</span></div>
-                <div class="flex-1 text-right">Pengeluaran<span id="totalKeluar" class="block font-bold text-red-300">Rp 0</span></div>
+                <div class="flex-1">Pemasukan<span id="totalMasuk" class="block font-bold text-green-300">...</span></div>
+                <div class="flex-1 text-right">Pengeluaran<span id="totalKeluar" class="block font-bold text-red-300">...</span></div>
             </div>
         </div>
 
@@ -89,7 +88,7 @@
             'Sosial': { icon: '🤝', bg: 'bg-blue-50' },
             'Infaq': { icon: '🌙', bg: 'bg-teal-100' },
             'Zakat': { icon: '🕌', bg: 'bg-lime-100' },
-            'Lainnya': { icon: '✨', bg: 'bg-gray-100' }, // Sudah ditambah koma
+            'Lainnya': { icon: '✨', bg: 'bg-gray-100' },
             'Tak Terduga': { icon: '✨', bg: 'bg-gray-100' }
         };
 
@@ -109,66 +108,13 @@
             return v;
         };
 
-        // FUNGSI EDIT - Menggunakan new_id
-        async function editTransaction(new_id, currentItem, currentJumlah) {
-            const newItem = prompt("Ubah Nama Item:", currentItem);
-            if (newItem === null) return;
-
-            const newJumlahInput = prompt("Ubah Jumlah (Angka saja):", currentJumlah);
-            if (newJumlahInput === null) return;
-            const newJumlah = parseInt(newJumlahInput);
-
-            const { error } = await supabaseClient
-                .from('transaksi')
-                .update({ item: newItem, jumlah: newJumlah })
-                .eq('new_id', new_id);
-
-            if (error) {
-                alert("Gagal mengupdate: " + error.message);
-            } else {
-                loadData(document.getElementById('monthFilter').value);
-            }
-        }
-
-        // FUNGSI HAPUS - Menggunakan new_id
-        async function deleteTransaction(new_id, itemNama) {
-            if (!confirm(`Hapus transaksi "${itemNama || 'ini'}"?`)) return;
-            const { error } = await supabaseClient.from('transaksi').delete().eq('new_id', new_id);
-            if (error) {
-                alert("Gagal menghapus: " + error.message);
-            } else {
-                loadData(document.getElementById('monthFilter').value);
-            }
-        }
-
-        function switchTab(tab) {
-            const isRiwayat = tab === 'riwayat';
-            document.getElementById('secRiwayat').classList.toggle('hidden', !isRiwayat);
-            document.getElementById('secAnalisa').classList.toggle('hidden', isRiwayat);
-            document.getElementById('btnRiwayat').className = `flex-1 py-3 text-[10px] font-bold uppercase tracking-wider ${isRiwayat ? 'tab-active' : 'tab-inactive'}`;
-            document.getElementById('btnAnalisa').className = `flex-1 py-3 text-[10px] font-bold uppercase tracking-wider ${!isRiwayat ? 'tab-active' : 'tab-inactive'}`;
-            if(!isRiwayat) loadTrendData();
-        }
-
-        async function initFilter() {
-            const { data } = await supabaseClient.from('transaksi').select('tanggal').order('tanggal', { ascending: false });
-            if (data && data.length > 0) {
-                const uniqueMonths = [...new Set(data.map(i => {
-                    const d = new Date(i.tanggal);
-                    return d.toLocaleDateString('id-ID', { month: 'long', year: 'numeric' });
-                }))];
-                document.getElementById('monthFilter').innerHTML = uniqueMonths.map(m => `<option value="${m}">${m}</option>`).join('');
-                loadData(uniqueMonths[0]);
-            }
-        }
-
-        async function loadData(filterValue) {
-            const { data, error } = await supabaseClient.rpc('get_monthly_summary', { target_month_year: filterValue });
-            if (error) return;
-            
+        // RENDER UI LOGIC (Dipisah agar bisa dipanggil Cache & API)
+        function updateMainUI(data) {
+            if(!data) return;
             document.getElementById('totalSaldo').innerText = formatIDR(data.saldo);
             document.getElementById('totalMasuk').innerText = formatIDR(data.pemasukan);
             document.getElementById('totalKeluar').innerText = formatIDR(data.pengeluaran);
+            
             updateAnalisaChart(data.transaksi || [], data.pengeluaran);
             
             const listEl = document.getElementById('transactionList');
@@ -212,6 +158,58 @@
                         </div>
                     </div>`);
             });
+        }
+
+        async function editTransaction(new_id, currentItem, currentJumlah) {
+            const newItem = prompt("Ubah Nama Item:", currentItem);
+            if (newItem === null) return;
+            const newJumlahInput = prompt("Ubah Jumlah (Angka saja):", currentJumlah);
+            if (newJumlahInput === null) return;
+            const newJumlah = parseInt(newJumlahInput);
+            const { error } = await supabaseClient.from('transaksi').update({ item: newItem, jumlah: newJumlah }).eq('new_id', new_id);
+            if (error) alert("Gagal mengupdate: " + error.message);
+            else loadData(document.getElementById('monthFilter').value);
+        }
+
+        async function deleteTransaction(new_id, itemNama) {
+            if (!confirm(`Hapus transaksi "${itemNama || 'ini'}"?`)) return;
+            const { error } = await supabaseClient.from('transaksi').delete().eq('new_id', new_id);
+            if (error) alert("Gagal menghapus: " + error.message);
+            else loadData(document.getElementById('monthFilter').value);
+        }
+
+        function switchTab(tab) {
+            const isRiwayat = tab === 'riwayat';
+            document.getElementById('secRiwayat').classList.toggle('hidden', !isRiwayat);
+            document.getElementById('secAnalisa').classList.toggle('hidden', isRiwayat);
+            document.getElementById('btnRiwayat').className = `flex-1 py-3 text-[10px] font-bold uppercase tracking-wider ${isRiwayat ? 'tab-active' : 'tab-inactive'}`;
+            document.getElementById('btnAnalisa').className = `flex-1 py-3 text-[10px] font-bold uppercase tracking-wider ${!isRiwayat ? 'tab-active' : 'tab-inactive'}`;
+            if(!isRiwayat) loadTrendData();
+        }
+
+        async function initFilter() {
+            // Jalankan Cache sesegera mungkin
+            const cache = localStorage.getItem('last_summary');
+            if(cache) updateMainUI(JSON.parse(cache));
+
+            const { data } = await supabaseClient.from('transaksi').select('tanggal').order('tanggal', { ascending: false });
+            if (data && data.length > 0) {
+                const uniqueMonths = [...new Set(data.map(i => {
+                    const d = new Date(i.tanggal);
+                    return d.toLocaleDateString('id-ID', { month: 'long', year: 'numeric' });
+                }))];
+                document.getElementById('monthFilter').innerHTML = uniqueMonths.map(m => `<option value="${m}">${m}</option>`).join('');
+                loadData(uniqueMonths[0]);
+            }
+        }
+
+        async function loadData(filterValue) {
+            const { data, error } = await supabaseClient.rpc('get_monthly_summary', { target_month_year: filterValue });
+            if (error) return;
+            
+            // Simpan cache untuk loading berikutnya
+            localStorage.setItem('last_summary', JSON.stringify(data));
+            updateMainUI(data);
         }
 
         function updateAnalisaChart(transactions, totalPengeluaran) {
@@ -292,10 +290,11 @@
         }
 
         document.getElementById('monthFilter').addEventListener('change', (e) => loadData(e.target.value));
+        
+        // Init lebih awal
         initFilter();
-        window.Telegram.WebApp.ready();
+        
+        
     </script>
 </body>
 </html>
-
-
