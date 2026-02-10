@@ -14,6 +14,12 @@
         .glass-card { background: var(--tg-theme-bg-color, #ffffff); border: 1px solid rgba(0,0,0,0.05); }
         .tab-active { border-bottom: 2px solid #2563eb; color: #2563eb; }
         .tab-inactive { border-bottom: 2px solid transparent; color: #9ca3af; }
+        
+        .modal-enter { animation: modalFade 0.2s ease-out; }
+        @keyframes modalFade {
+            from { opacity: 0; transform: scale(0.95); }
+            to { opacity: 1; transform: scale(1); }
+        }
     </style>
 </head>
 <body class="antialiased font-sans">
@@ -65,6 +71,31 @@
         </div>
     </main>
 
+    <div id="modalDetail" class="hidden fixed inset-0 z-[60] flex items-center justify-center px-4">
+        <div class="fixed inset-0 bg-black/40 backdrop-blur-sm" onclick="closeDetail()"></div>
+        <div class="glass-card w-full max-w-sm rounded-3xl p-6 relative z-10 modal-enter shadow-2xl">
+            <div class="flex justify-between items-center mb-5">
+                <div>
+                    <h3 class="font-bold text-gray-800 text-lg">Detail Item</h3>
+                    <p id="detailSubtitle" class="text-[10px] text-blue-600 font-bold uppercase tracking-widest"></p>
+                </div>
+                <button onclick="closeDetail()" class="text-gray-400 hover:text-gray-600 p-1">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                </button>
+            </div>
+            <div id="detailContent" class="space-y-3 max-h-[50vh] overflow-y-auto pr-1"></div>
+            
+            <div id="detailFooter" class="mt-4 pt-4 border-t border-gray-100 flex justify-between items-center">
+                <p class="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Total Harga</p>
+                <p id="detailTotalPrice" class="text-lg font-black text-blue-600"></p>
+            </div>
+
+            <button onclick="closeDetail()" class="w-full mt-6 py-3 bg-gray-100 text-gray-600 font-bold rounded-2xl text-xs uppercase tracking-widest active:bg-gray-200 transition-colors">Tutup</button>
+        </div>
+    </div>
+
     <script>
         const SUPABASE_URL = 'https://pfichwnfffjzibusofao.supabase.co';
         const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBmaWNod25mZmZqemlidXNvZmFvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjU4MzE0NjIsImV4cCI6MjA4MTQwNzQ2Mn0.Hp9nGeQEiNXnKoPkeSY2Qoey0HP2Er0E4TbwBe_y64c';
@@ -79,7 +110,7 @@
             'Bahan Masak': { icon: '🥕', bg: 'bg-green-50' },
             'Belanja Rumah Tangga': { icon: '🛒', bg: 'bg-pink-100' },
             'Kebutuhan Bayi': { icon: '🍼', bg: 'bg-blue-100' },
-            'Pakaian dan Pribadi': { icon: '👕', bg: 'bg-amber-100' },
+            'Pakaian & Pribadi': { icon: '👕', bg: 'bg-amber-100' },
             'Hiburan': { icon: '🎮', bg: 'bg-indigo-100' },
             'Tagihan': { icon: '📄', bg: 'bg-red-100' },
             'Kesehatan': { icon: '💊', bg: 'bg-rose-100' },
@@ -108,13 +139,59 @@
             return v;
         };
 
-        // RENDER UI LOGIC (Dipisah agar bisa dipanggil Cache & API)
+        function showDetail(encodedJson, itemName) {
+            const detailEl = document.getElementById('modalDetail');
+            const contentEl = document.getElementById('detailContent');
+            const subtitleEl = document.getElementById('detailSubtitle');
+            const totalEl = document.getElementById('detailTotalPrice');
+            let details = [];
+            let totalSum = 0;
+
+            try {
+                let decoded = decodeURIComponent(encodedJson);
+                if (decoded.includes('\n')) {
+                    details = decoded.trim().split('\n').map(line => JSON.parse(line));
+                } else {
+                    const parsed = JSON.parse(decoded);
+                    details = Array.isArray(parsed) ? parsed : [parsed];
+                }
+            } catch (e) {
+                console.error("Parse Error:", e);
+                details = null;
+            }
+
+            subtitleEl.innerText = itemName;
+            let html = '';
+            if (details && details.length > 0) {
+                html = `<div class="divide-y divide-gray-100">`;
+                details.forEach(d => {
+                    const hargaItem = d.total_harga || 0;
+                    totalSum += hargaItem;
+                    html += `<div class="py-3 flex justify-between items-center">
+                        <div class="flex-1 pr-4">
+                            <p class="text-sm font-bold text-gray-700">${d.nama || 'Item'}</p>
+                            <p class="text-[10px] text-gray-400 font-medium tracking-wide">QTY: ${d.qty || 0}</p>
+                        </div>
+                        <p class="text-sm font-black text-gray-900">${formatIDR(hargaItem)}</p>
+                    </div>`;
+                });
+                html += `</div>`;
+                totalEl.innerText = formatIDR(totalSum);
+            } else {
+                html = `<div class="py-8 text-center text-xs text-gray-400">Tidak ada rincian item.</div>`;
+                totalEl.innerText = formatIDR(0);
+            }
+            contentEl.innerHTML = html;
+            detailEl.classList.remove('hidden');
+        }
+
+        function closeDetail() { document.getElementById('modalDetail').classList.add('hidden'); }
+
         function updateMainUI(data) {
             if(!data) return;
             document.getElementById('totalSaldo').innerText = formatIDR(data.saldo);
             document.getElementById('totalMasuk').innerText = formatIDR(data.pemasukan);
             document.getElementById('totalKeluar').innerText = formatIDR(data.pengeluaran);
-            
             updateAnalisaChart(data.transaksi || [], data.pengeluaran);
             
             const listEl = document.getElementById('transactionList');
@@ -126,9 +203,18 @@
                 const namaHari = tglObj.toLocaleDateString('id-ID', { weekday: 'long' });
                 const tglFormat = tglObj.toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: '2-digit' });
                 let waktuInput = (item["Waktu Input"] || "").substring(0, 5);
+                
+                const rawDetail = item.item_detail;
+                const hasDetail = rawDetail && rawDetail !== "[]" && rawDetail !== "";
+                const detailStr = typeof rawDetail === 'string' ? rawDetail : JSON.stringify(rawDetail || []);
+                const encodedDetail = encodeURIComponent(detailStr);
+
+                // Disable fitur klik jika tidak ada detail
+                const clickAttr = hasDetail ? `onclick="showDetail('${encodedDetail}', '${item.item}')"` : "";
+                const cursorClass = hasDetail ? "cursor-pointer active:scale-95 hover:border-blue-200" : "cursor-default";
 
                 listEl.insertAdjacentHTML('beforeend', `
-                    <div class="glass-card p-4 rounded-xl flex justify-between items-center ${isM ? 'border-l-4 border-l-green-500' : 'border-l-4 border-l-red-500'}">
+                    <div ${clickAttr} class="glass-card p-4 rounded-xl flex justify-between items-center transition-all ${cursorClass} ${isM ? 'border-l-4 border-l-green-500' : 'border-l-4 border-l-red-500'}">
                         <div class="flex items-center gap-4">
                             <div class="w-10 h-10 rounded-full ${catInfo.bg} flex items-center justify-center text-lg shadow-sm">
                                 ${catInfo.icon}
@@ -143,7 +229,7 @@
                             <p class="font-black text-sm ${isM ? 'text-green-600' : 'text-red-600'}">
                                 ${isM ? '+' : '-'} Rp${(item.jumlah || 0).toLocaleString('id-ID')}
                             </p>
-                            <div class="flex gap-2">
+                            <div class="flex gap-2" onclick="event.stopPropagation()">
                                 <button onclick="editTransaction('${item.new_id}', '${item.item}', ${item.jumlah})" class="text-gray-300 hover:text-blue-500 transition-colors p-1">
                                     <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
@@ -188,10 +274,8 @@
         }
 
         async function initFilter() {
-            // Jalankan Cache sesegera mungkin
             const cache = localStorage.getItem('last_summary');
             if(cache) updateMainUI(JSON.parse(cache));
-
             const { data } = await supabaseClient.from('transaksi').select('tanggal').order('tanggal', { ascending: false });
             if (data && data.length > 0) {
                 const uniqueMonths = [...new Set(data.map(i => {
@@ -206,8 +290,6 @@
         async function loadData(filterValue) {
             const { data, error } = await supabaseClient.rpc('get_monthly_summary', { target_month_year: filterValue });
             if (error) return;
-            
-            // Simpan cache untuk loading berikutnya
             localStorage.setItem('last_summary', JSON.stringify(data));
             updateMainUI(data);
         }
@@ -290,11 +372,7 @@
         }
 
         document.getElementById('monthFilter').addEventListener('change', (e) => loadData(e.target.value));
-        
-        // Init lebih awal
         initFilter();
-        
-        
     </script>
 </body>
 </html>
